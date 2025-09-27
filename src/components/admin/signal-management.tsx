@@ -39,15 +39,42 @@ import { cn } from "@/lib/utils";
 
 
 function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, onSave: (signal: Signal) => void, onOpenChange: (open: boolean) => void }) {
-    const [editedSignal, setEditedSignal] = React.useState<Partial<Signal>>(signal || {});
+    const [editedSignal, setEditedSignal] = React.useState<Partial<Signal>>(
+      signal || {
+        pair: '',
+        title: '',
+        action: 'BUY',
+        entry: 0,
+        stopLoss: 0,
+        takeProfit: 0,
+        status: 'free',
+      }
+    );
     
     const handleSave = () => {
+        // Basic validation
+        if (!editedSignal.pair || !editedSignal.title || !editedSignal.entry || !editedSignal.stopLoss || !editedSignal.takeProfit) {
+            // In a real app, show a toast or error message
+            console.error("All fields are required");
+            return;
+        }
+
         const newSignal = {
             id: signal?.id || `sig-${Date.now()}`,
             createdAt: signal?.createdAt || new Date().toISOString(),
             ...editedSignal
         } as Signal;
         onSave(newSignal);
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      const isNumeric = ['entry', 'stopLoss', 'takeProfit'].includes(name);
+      setEditedSignal({ ...editedSignal, [name]: isNumeric ? parseFloat(value) : value });
+    };
+
+    const handleSelectChange = (name: 'action' | 'status') => (value: string) => {
+        setEditedSignal({ ...editedSignal, [name]: value });
     }
     
     return (
@@ -61,9 +88,48 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="pair" className="text-right">Pair</Label>
-              <Input id="pair" value={editedSignal.pair || ''} onChange={e => setEditedSignal({...editedSignal, pair: e.target.value})} className="col-span-3" />
+              <Input id="pair" name="pair" value={editedSignal.pair || ''} onChange={handleChange} className="col-span-3" />
             </div>
-            {/* Add other fields here: title, action, entry, stopLoss, takeProfit, status */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="title" className="text-right">Title</Label>
+              <Input id="title" name="title" value={editedSignal.title || ''} onChange={handleChange} className="col-span-3" />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="action" className="text-right">Action</Label>
+                <Select name="action" value={editedSignal.action} onValueChange={handleSelectChange('action')}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="BUY">BUY</SelectItem>
+                        <SelectItem value="SELL">SELL</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="entry" className="text-right">Entry</Label>
+              <Input id="entry" name="entry" type="number" value={editedSignal.entry || ''} onChange={handleChange} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="stopLoss" className="text-right">Stop Loss</Label>
+              <Input id="stopLoss" name="stopLoss" type="number" value={editedSignal.stopLoss || ''} onChange={handleChange} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="takeProfit" className="text-right">Take Profit</Label>
+              <Input id="takeProfit" name="takeProfit" type="number" value={editedSignal.takeProfit || ''} onChange={handleChange} className="col-span-3" />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="status" className="text-right">Status</Label>
+                <Select name="status" value={editedSignal.status} onValueChange={handleSelectChange('status')}>
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="premium">Premium</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
