@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { UserNav } from '@/components/auth/user-nav';
 import { Logo } from '@/components/logo';
+import { Menu, X } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 
 export function Header() {
   const { user, loading } = useAuth();
@@ -23,9 +25,9 @@ export function Header() {
   }, []);
 
   const navLinks = [
-    { href: "/#features", label: "Features" },
-    { href: "/#signals", label: "Signals" },
-    { href: "/#pricing", label: "Pricing" },
+    { href: "/features", label: "Features" },
+    { href: "/signals", label: "Signals" },
+    { href: "/pricing", label: "Pricing" },
   ];
 
   return (
@@ -53,21 +55,81 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-4">
-          {loading ? (
-            <div className="h-8 w-20 animate-pulse rounded-md bg-muted/50" />
-          ) : user ? (
-            <UserNav />
-          ) : (
-            <>
-              <Button variant="ghost" asChild className={cn(isScrolled ? "text-primary" : "text-white hover:bg-white/10 hover:text-white")}>
-                <Link href="/login">Login</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/signup">Sign Up</Link>
-              </Button>
-            </>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
+            {loading ? (
+              <div className="h-8 w-20 animate-pulse rounded-md bg-muted/50" />
+            ) : user ? (
+              <UserNav />
+            ) : (
+              <>
+                <Button variant="ghost" asChild className={cn(isScrolled ? "text-primary" : "text-white hover:bg-white/10 hover:text-white")}>
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
+              </>
+            )}
+          </div>
+          
+          {/* Mobile Menu */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className={cn(isScrolled ? "text-primary" : "text-white hover:bg-white/10 hover:text-white")}>
+                  <Menu className="h-6 w-6" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-full max-w-sm bg-card">
+                <div className="flex flex-col h-full">
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <Link href="/" aria-label="ForexEdge Home">
+                        <Logo />
+                    </Link>
+                    <SheetClose asChild>
+                         <Button variant="ghost" size="icon">
+                            <X className="h-6 w-6" />
+                            <span className="sr-only">Close menu</span>
+                        </Button>
+                    </SheetClose>
+                  </div>
+                  <nav className="flex flex-col gap-6 text-lg font-medium mt-8">
+                    {navLinks.map((link) => (
+                      <SheetClose asChild key={link.href}>
+                        <Link href={link.href} className="text-foreground hover:text-primary transition-colors">
+                          {link.label}
+                        </Link>
+                      </SheetClose>
+                    ))}
+                  </nav>
+                  <div className="mt-auto pt-8 border-t">
+                     {loading ? (
+                        <div className="h-10 w-full animate-pulse rounded-md bg-muted/50" />
+                      ) : user ? (
+                        <div className="flex flex-col gap-4">
+                          <p className="text-center text-muted-foreground">{user.email}</p>
+                          <Button asChild className="w-full">
+                            <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>Dashboard</Link>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-4">
+                          <Button asChild variant="outline" className="w-full">
+                            <Link href="/login">Login</Link>
+                          </Button>
+                          <Button asChild className="w-full">
+                            <Link href="/signup">Sign Up</Link>
+                          </Button>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+           {user && <div className="md:hidden"><UserNav /></div>}
         </div>
       </div>
     </header>

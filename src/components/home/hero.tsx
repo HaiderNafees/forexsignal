@@ -25,7 +25,7 @@ export function Hero() {
           <h1 className="font-headline text-5xl font-bold tracking-tight md:text-7xl lg:text-8xl">
             Trade Smarter with <span className="text-primary">ForexEdge</span>
           </h1>
-          <p className="mt-6 mx-auto max-w-2xl text-lg text-gray-300 md:text-xl">
+          <p className="mt-6 mx-auto max-w-3xl text-lg text-gray-300 md:text-xl">
             Gain your edge in the market with professional-grade signals, live data, and powerful analytics. Your journey to profitable trading starts here.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -36,7 +36,7 @@ export function Hero() {
               </Link>
             </Button>
             <Button size="lg" variant="outline" className="bg-transparent border-accent text-accent hover:bg-accent hover:text-accent-foreground">
-              <Link href="/#pricing">View Pro Plans</Link>
+              <Link href="/pricing">View Pro Plans</Link>
             </Button>
           </div>
         </div>
