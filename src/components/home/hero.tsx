@@ -21,11 +21,11 @@ export function Hero() {
       )}
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white px-4">
-        <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000">
+        <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 max-w-4xl">
           <h1 className="font-headline text-5xl font-bold tracking-tight md:text-7xl lg:text-8xl">
             Trade Smarter with <span className="text-primary">ForexEdge</span>
           </h1>
-          <p className="mt-6 max-w-2xl text-lg text-gray-300 md:text-xl">
+          <p className="mt-6 mx-auto max-w-2xl text-lg text-gray-300 md:text-xl">
             Gain your edge in the market with professional-grade signals, live data, and powerful analytics. Your journey to profitable trading starts here.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
