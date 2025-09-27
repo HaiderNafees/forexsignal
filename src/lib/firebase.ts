@@ -1,3 +1,4 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
@@ -12,12 +13,10 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
+let app: FirebaseApp | undefined;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
 
-// This function lazily initializes Firebase.
-// It ensures that Firebase is only initialized when the config is available.
 function initializeFirebase() {
   if (
     !firebaseConfig.apiKey ||
@@ -25,11 +24,7 @@ function initializeFirebase() {
     !firebaseConfig.projectId ||
     !firebaseConfig.appId
   ) {
-    // This will now only be a warning in the browser console if config is missing,
-    // instead of a build-breaking error.
     console.error("Firebase configuration is missing. Make sure all NEXT_PUBLIC_FIREBASE_* environment variables are set.");
-    // We can't proceed, so we'll just have to stop here.
-    // The app will not have firebase functionality but at least it will build.
     return;
   }
   
@@ -42,10 +37,6 @@ function initializeFirebase() {
   db = getFirestore(app);
 }
 
-// Call the function to initialize Firebase.
-// This will run when this module is first imported.
 initializeFirebase();
 
-// Export the initialized services.
-// They might be undefined if initialization failed, but this prevents build errors.
 export { app, auth, db };

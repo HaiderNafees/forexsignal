@@ -21,8 +21,11 @@ import {
     updateDoc,
     query,
     orderBy,
-    getDoc
+    getDoc,
+    getDocs,
+    where
 } from 'firebase/firestore';
+import { USERS, SIGNALS } from '@/lib/placeholder-data';
 
 type AuthContextType = {
   user: User | null;
@@ -41,6 +44,57 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Function to seed initial data
+async function seedInitialData() {
+  if (!db || !auth) return;
+
+  // Check if admin user exists
+  const adminEmail = "admin@forexsignal.com";
+  const usersRef = collection(db, "users");
+  const q = query(usersRef, where("email", "==", adminEmail));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    console.log("Admin user not found, seeding database...");
+    
+    // Seed admin user
+    try {
+      const adminUserCred = await createUserWithEmailAndPassword(auth, adminEmail, "Admin798956!!");
+      const adminUserData: Omit<User, 'uid'> = {
+        email: adminEmail,
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', adminUserCred.user.uid), adminUserData);
+      console.log("Admin user created successfully.");
+
+      // You can also seed other users if you want, but for now, we just ensure admin exists.
+      
+      // Seed signals
+      const signalsRef = collection(db, "signals");
+      const signalsSnapshot = await getDocs(signalsRef);
+      if (signalsSnapshot.empty) {
+        console.log("Seeding signals...");
+        for (const signal of SIGNALS) {
+            const signalDocRef = doc(signalsRef, signal.id);
+            await setDoc(signalDocRef, signal);
+        }
+        console.log("Signals seeded.");
+      }
+
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        console.log('Admin user already exists in Auth, skipping creation.');
+      } else {
+        console.error("Error seeding admin user:", error);
+      }
+    }
+  } else {
+    console.log("Admin user already exists. Skipping seeding.");
+  }
+}
+
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -50,12 +104,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!auth) {
-        setLoading(false);
-        return;
+    if (!auth || !db) {
+      setLoading(false);
+      return;
     }
+    
+    seedInitialData();
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -63,12 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (doc.exists()) {
             const userData = { ...doc.data() as User, uid: doc.id };
             setUser(userData);
-             if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
-                const path = userData.role === 'admin' ? '/admin' : '/dashboard';
-                router.replace(path);
-            }
           } else {
-            setUser(null);
+            setUser(null); // User exists in Auth but not Firestore, log them out
           }
           setLoading(false);
         });
@@ -80,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribeAuth();
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (!db) return;
@@ -154,9 +206,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       toast({
         title: 'Account Created',
-        description: 'You have been successfully signed up! Redirecting to login...',
+        description: 'You have been successfully signed up! Redirecting to dashboard...',
       });
-      router.push('/login');
+      router.push('/dashboard');
 
     } catch (error: any) {
       toast({
@@ -224,13 +276,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
     if (!db) return;
-    const newId = doc(collection(db, "signals")).id;
-    const newSignal: Omit<Signal, 'id'> & { createdAt: string } = {
+    const newDocRef = doc(collection(db, "signals"));
+    const newSignal: Omit<Signal, 'id'> & { id: string, createdAt: string } = {
+        id: newDocRef.id,
         ...signalData,
         createdAt: new Date().toISOString(),
     };
     try {
-        await setDoc(doc(db, 'signals', newId), { ...newSignal, id: newId });
+        await setDoc(newDocRef, newSignal);
         toast({ title: "Signal Created" });
     } catch (error: any) {
         toast({
