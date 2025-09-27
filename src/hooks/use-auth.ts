@@ -14,9 +14,9 @@ type AuthContextType = {
   logout: () => void;
   updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
   deleteUser: (userId: string) => void;
-  addSignal: (signal: Signal) => void;
-  updateSignal: (signal: Signal) => void;
-  deleteSignal: (signalId: string) => void;
+  addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
+  updateSignal: (signal: Signal) => Promise<void>;
+  deleteSignal: (signalId: string) => Promise<void>;
 };
 
 

@@ -5,10 +5,24 @@ import type { User, Signal } from '@/lib/types';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { USERS, SIGNALS as INITIAL_SIGNALS } from '@/lib/placeholder-data';
+import { auth, db } from '@/lib/firebase';
+import { 
+    onAuthStateChanged, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut 
+} from 'firebase/auth';
+import { 
+    collection, 
+    doc, 
+    onSnapshot, 
+    setDoc, 
+    deleteDoc, 
+    updateDoc,
+    query,
+    orderBy
+} from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 
 type AuthContextType = {
   user: User | null;
@@ -20,178 +34,232 @@ type AuthContextType = {
   logout: () => void;
   updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
   deleteUser: (userId: string) => void;
-  addSignal: (signal: Signal) => void;
-  updateSignal: (signal: Signal) => void;
-  deleteSignal: (signalId: string) => void;
+  addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
+  updateSignal: (signal: Signal) => Promise<void>;
+  deleteSignal: (signalId: string) => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// In a real app, you'd fetch this from a database.
-// We use localStorage to persist data across reloads for this simulation.
-const getInitialState = <T,>(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-        const parsed = JSON.parse(stored);
-        // Ensure that for users, we don't return an empty array if there's nothing in storage
-        // and instead fall back to the initial dummy data. This prevents existing users from disappearing.
-        if (key === 'forex-edge-all-users' && Array.isArray(parsed) && parsed.length === 0) {
-            localStorage.setItem(key, JSON.stringify(fallback));
-            return fallback;
-        }
-        return parsed;
-    }
-     localStorage.setItem(key, JSON.stringify(fallback));
-    return fallback;
-  } catch (error) {
-    console.error(`Failed to parse ${key} from localStorage`, error);
-    return fallback;
-  }
-};
-
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => getInitialState('forex-edge-user', null));
-  const [users, setUsers] = useState<User[]>(() => getInitialState('forex-edge-all-users', USERS));
-  const [signals, setSignals] = useState<Signal[]>(() => getInitialState('forex-edge-signals', INITIAL_SIGNALS));
+  const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    setLoading(false);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
+          if (doc.exists()) {
+            setUser({ ...doc.data() as User, uid: doc.id });
+          } else {
+            // This case might happen if the user record in Firestore is deleted
+            // but the auth record still exists.
+            setUser(null);
+          }
+          setLoading(false);
+        });
+        return () => unsubscribeUser();
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
-  // Persist state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('forex-edge-user', JSON.stringify(user));
-  }, [user]);
+    // Listen for changes to all users (for admin panel)
+    const usersCollectionRef = collection(db, 'users');
+    const q = query(usersCollectionRef, orderBy('createdAt', 'desc'));
+    const unsubscribeUsers = onSnapshot(q, (snapshot) => {
+      const allUsers = snapshot.docs.map(doc => ({ ...doc.data() as User, uid: doc.id }));
+      setUsers(allUsers);
+    });
+
+    return () => unsubscribeUsers();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('forex-edge-all-users', JSON.stringify(users));
-  }, [users]);
-  
-  useEffect(() => {
-    localStorage.setItem('forex-edge-signals', JSON.stringify(signals));
-  }, [signals]);
+    // Listen for changes to all signals
+    const signalsCollectionRef = collection(db, 'signals');
+    const q = query(signalsCollectionRef, orderBy('createdAt', 'desc'));
+    const unsubscribeSignals = onSnapshot(q, (snapshot) => {
+      const allSignals = snapshot.docs.map(doc => ({ ...doc.data() as Signal, id: doc.id }));
+      setSignals(allSignals);
+    });
+
+    return () => unsubscribeSignals();
+  }, []);
 
   const login = useCallback(async (email: string, pass: string) => {
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const foundUser = users.find(u => u.email === email);
-    
-    // Specific check for hardcoded admin credentials
-    if (email === 'admin@forexsignal.com' && pass === 'Admin798956!!') {
-      const adminUser = users.find(u => u.role === 'admin');
-      if (adminUser) {
-        setUser(adminUser);
-        toast({ title: 'Welcome, Admin!', description: 'Redirecting to your dashboard.' });
-        router.push('/admin');
-      }
-      setLoading(false);
-      return;
-    }
-
-    if (foundUser) {
-      setUser(foundUser);
-      toast({ title: 'Login Successful', description: `Welcome back, ${foundUser.email}!` });
-      if (foundUser.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
-      }
-    } else {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      // onAuthStateChanged will handle setting the user and redirecting
+      toast({ title: 'Login Successful', description: 'Welcome back!' });
+      // The router push is now handled by onAuthStateChanged effect
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: 'Invalid credentials. Please try again.',
+        description: error.message || 'Invalid credentials. Please try again.',
       });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [router, toast, users]);
+  }, [toast]);
 
   const signup = useCallback(async (email: string, pass: string) => {
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const existingUser = users.find(u => u.email === email);
-    if(existingUser) {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = userCredential.user;
+
+      // Create a user document in Firestore
+      const newUser: User = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email!,
+        role: 'free',
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+      
+      toast({
+        title: 'Account Created',
+        description: 'You can now log in.',
+      });
+      router.push('/login');
+
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Signup Failed',
-        description: 'An account with this email already exists.',
+        description: error.message || 'An error occurred during signup.',
       });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const newUser: User = {
-      uid: `new-user-${Math.random().toString(36).substr(2, 9)}`,
-      email,
-      role: 'free',
-      createdAt: new Date().toISOString(),
-    };
-
-    setUsers(prevUsers => [...prevUsers, newUser]);
-    
-    toast({
-      title: 'Account Created',
-      description: 'Please proceed to login.',
-    });
-
-    router.push('/login');
-    setLoading(false);
-  }, [router, toast, users]);
+  }, [router, toast]);
   
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem('forex-edge-user');
-    toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
-    router.push('/login');
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Logout Failed',
+        description: error.message,
+      });
+    }
   }, [router, toast]);
 
-  const updateUserRole = useCallback((userId: string, role: 'free' | 'pro' | 'admin') => {
-    setUsers(prevUsers => prevUsers.map(u => (u.uid === userId ? { ...u, role } : u)));
-    if (user && user.uid === userId) {
-      const updatedUser = { ...user, role };
-      setUser(updatedUser);
+  const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
+    const userDocRef = doc(db, 'users', userId);
+    try {
+      await updateDoc(userDocRef, { role });
+      toast({
+          title: 'User Role Updated',
+          description: `User role has been successfully changed to ${role}.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message,
+      });
     }
-     toast({
-        title: 'User Role Updated',
-        description: `User role has been successfully changed to ${role}.`,
-    });
-  }, [user, toast]);
-
-  const deleteUser = useCallback((userId: string) => {
-    setUsers(prevUsers => prevUsers.filter(u => u.uid !== userId));
-    toast({
-      variant: 'destructive',
-      title: 'User Removed',
-      description: 'The user has been successfully removed.',
-    });
   }, [toast]);
 
-  const addSignal = useCallback((signal: Signal) => {
-    setSignals(prevSignals => [signal, ...prevSignals]);
-    toast({ title: "Signal Created" });
+  const deleteUser = useCallback(async (userId: string) => {
+    // Note: This only deletes the Firestore record. For a full deletion, 
+    // you would need a Firebase Function to delete the auth user.
+    const userDocRef = doc(db, 'users', userId);
+    try {
+      await deleteDoc(userDocRef);
+      toast({
+        variant: 'destructive',
+        title: 'User Removed',
+        description: 'The user has been successfully removed from the database.',
+      });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Deletion Failed',
+            description: error.message,
+        });
+    }
   }, [toast]);
 
-  const updateSignal = useCallback((signal: Signal) => {
-    setSignals(prevSignals => prevSignals.map(s => s.id === signal.id ? signal : s));
-    toast({ title: "Signal Updated" });
+  const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
+    const newId = doc(collection(db, "signals")).id;
+    const newSignal: Signal = {
+        ...signalData,
+        id: newId,
+        createdAt: new Date().toISOString(),
+    };
+    try {
+        await setDoc(doc(db, 'signals', newId), newSignal);
+        toast({ title: "Signal Created" });
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Create Signal',
+            description: error.message,
+        });
+    }
+  }, [toast]);
+
+
+  const updateSignal = useCallback(async (signal: Signal) => {
+    const signalDocRef = doc(db, 'signals', signal.id);
+    try {
+      await updateDoc(signalDocRef, { ...signal });
+      toast({ title: "Signal Updated" });
+    } catch (error: any) {
+       toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message,
+      });
+    }
   }, [toast]);
   
-  const deleteSignal = useCallback((signalId: string) => {
-    setSignals(prevSignals => prevSignals.filter(s => s.id !== signalId));
-     toast({
-        variant: "destructive",
-        title: "Signal Deleted",
-        description: "The signal has been removed successfully."
-    })
+  const deleteSignal = useCallback(async (signalId: string) => {
+    const signalDocRef = doc(db, 'signals', signalId);
+    try {
+        await deleteDoc(signalDocRef);
+        toast({
+            variant: "destructive",
+            title: "Signal Deleted",
+            description: "The signal has been removed successfully."
+        })
+    } catch(error: any) {
+         toast({
+            variant: "destructive",
+            title: "Deletion Failed",
+            description: error.message
+        })
+    }
   }, [toast]);
+
+  useEffect(() => {
+    if (!loading && user) {
+        const path = user.role === 'admin' ? '/admin' : '/dashboard';
+        if(window.location.pathname === '/login' || window.location.pathname === '/signup' || window.location.pathname === '/'){
+             router.push(path);
+        }
+    }
+  }, [user, loading, router]);
 
 
   const contextValue = {

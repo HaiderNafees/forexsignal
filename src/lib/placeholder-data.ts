@@ -1,5 +1,8 @@
 import type { User, Signal } from '@/lib/types';
 
+// This data is now only for reference and initial seeding if needed.
+// The primary source of truth is Firebase Firestore.
+
 export const USERS: User[] = [
   {
     uid: 'admin001',

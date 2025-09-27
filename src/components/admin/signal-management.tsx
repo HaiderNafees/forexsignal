@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
 
-function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, onSave: (signal: Signal) => void, onOpenChange: (open: boolean) => void }) {
+function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, onSave: (signal: Omit<Signal, 'id' | 'createdAt'> | Signal) => void, onOpenChange: (open: boolean) => void }) {
     const [editedSignal, setEditedSignal] = React.useState<Partial<Signal>>(
       signal || {
         pair: '',
@@ -58,12 +58,7 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
             return;
         }
 
-        const newSignal = {
-            id: signal?.id || `sig-${Date.now()}`,
-            createdAt: signal?.createdAt || new Date().toISOString(),
-            ...editedSignal
-        } as Signal;
-        onSave(newSignal);
+        onSave(editedSignal as Signal);
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,9 +138,8 @@ export function SignalManagement() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [selectedSignal, setSelectedSignal] = React.useState<Signal | null>(null);
 
-  const handleSaveSignal = (signal: Signal) => {
-    const exists = signals.some(s => s.id === signal.id);
-    if (exists) {
+  const handleSaveSignal = (signal: Omit<Signal, 'id' | 'createdAt'> | Signal) => {
+    if ('id' in signal) {
         updateSignal(signal);
     } else {
         addSignal(signal);
