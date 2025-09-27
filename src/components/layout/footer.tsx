@@ -20,9 +20,9 @@ export function Footer() {
                 </Link>
                 <p className="text-sm text-muted-foreground mt-2 text-center md:text-left">Premium Forex Signals & Analytics</p>
             </div>
-            <div className="flex flex-col items-center md:items-center">
+            <div className="flex flex-col items-center">
                  <h3 className="font-headline text-lg font-semibold">Quick Links</h3>
-                 <div className="flex flex-col items-center md:items-start gap-2 mt-4">
+                 <div className="flex flex-col items-center md:items-start gap-2 mt-4 text-center">
                     {footerLinks.map(link => (
                         <Link key={link.href} href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
                             {link.label}
