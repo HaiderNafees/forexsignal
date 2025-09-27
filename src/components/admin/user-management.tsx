@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { USERS } from "@/lib/placeholder-data";
 import { User } from "@/lib/types";
 import {
   Table,
@@ -22,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, User as UserIcon, Shield, Crown } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 const roleIcons = {
   free: <UserIcon className="h-4 w-4 text-muted-foreground" />,
@@ -31,26 +30,8 @@ const roleIcons = {
 };
 
 export function UserManagement() {
-  const [users, setUsers] = React.useState<User[]>(USERS);
-  const { toast } = useToast();
-
-  const handleRoleChange = (userId: string, newRole: "free" | "pro") => {
-    setUsers(users.map(u => u.uid === userId ? {...u, role: newRole} : u));
-    toast({
-        title: "User Role Updated",
-        description: `User role has been successfully changed to ${newRole}.`,
-    })
-  };
+  const { users, updateUserRole, deleteUser } = useAuth();
   
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(u => u.uid !== userId));
-    toast({
-        variant: "destructive",
-        title: "User Removed",
-        description: `User has been successfully removed.`,
-    })
-  };
-
   return (
     <div className="space-y-4">
       <div>
@@ -93,14 +74,17 @@ export function UserManagement() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => handleRoleChange(user.uid, 'pro')} disabled={user.role === 'pro'}>
+                      <DropdownMenuItem onSelect={() => updateUserRole(user.uid, 'pro')} disabled={user.role === 'pro'}>
                         Make Pro
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => handleRoleChange(user.uid, 'free')} disabled={user.role === 'free'}>
+                      <DropdownMenuItem onSelect={() => updateUserRole(user.uid, 'free')} disabled={user.role === 'free'}>
                         Make Free
                       </DropdownMenuItem>
+                       <DropdownMenuItem onSelect={() => updateUserRole(user.uid, 'admin')} disabled={user.role === 'admin'}>
+                        Make Admin
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => handleDeleteUser(user.uid)} className="text-destructive" disabled={user.role === 'admin'}>
+                      <DropdownMenuItem onSelect={() => deleteUser(user.uid)} className="text-destructive" disabled={user.role === 'admin'}>
                         Delete User
                       </DropdownMenuItem>
                     </DropdownMenuContent>

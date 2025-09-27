@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { SIGNALS } from "@/lib/placeholder-data";
 import { Signal } from "@/lib/types";
 import {
   Table,
@@ -22,7 +21,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 
 function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, onSave: (signal: Signal) => void, onOpenChange: (open: boolean) => void }) {
@@ -74,7 +73,7 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
     };
 
     const handleSelectChange = (name: 'action' | 'status') => (value: string) => {
-        setEditedSignal({ ...editedSignal, [name]: value });
+        setEditedSignal({ ...editedSignal, [name]: value as any });
     }
     
     return (
@@ -140,28 +139,16 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
 }
 
 export function SignalManagement() {
-  const [signals, setSignals] = React.useState<Signal[]>(SIGNALS);
-  const { toast } = useToast();
+  const { signals, addSignal, updateSignal, deleteSignal } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [selectedSignal, setSelectedSignal] = React.useState<Signal | null>(null);
 
-  const handleDelete = (signalId: string) => {
-    setSignals(signals.filter(s => s.id !== signalId));
-    toast({
-        variant: "destructive",
-        title: "Signal Deleted",
-        description: "The signal has been removed successfully."
-    })
-  }
-  
   const handleSaveSignal = (signal: Signal) => {
     const exists = signals.some(s => s.id === signal.id);
     if (exists) {
-        setSignals(signals.map(s => s.id === signal.id ? signal : s));
-        toast({ title: "Signal Updated" });
+        updateSignal(signal);
     } else {
-        setSignals([signal, ...signals]);
-        toast({ title: "Signal Created" });
+        addSignal(signal);
     }
     setIsDialogOpen(false);
     setSelectedSignal(null);
@@ -236,7 +223,7 @@ export function SignalManagement() {
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => openEditDialog(signal)}>Edit</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => handleDelete(signal.id)} className="text-destructive">Delete</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => deleteSignal(signal.id)} className="text-destructive">Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

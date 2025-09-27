@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { SIGNALS } from '@/lib/placeholder-data';
 import type { Signal } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpRight, ArrowDownRight, Clock, Lock, ArrowRight, Star } from 'lucide-react';
@@ -71,7 +70,7 @@ function UpgradeAlert({ onUpgrade }: { onUpgrade: () => void }) {
 }
 
 export default function DashboardPage() {
-  const { user, loading, updateUserRole } = useAuth();
+  const { user, signals, loading, updateUserRole } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -101,15 +100,15 @@ export default function DashboardPage() {
   }
 
   const isPro = user.role === 'pro';
-  const signalsToShow = isPro ? SIGNALS : SIGNALS.slice(0, 2);
 
   const handleUpgrade = () => {
-    // This is a dummy upgrade for simulation purposes
-    updateUserRole(user.uid, 'pro');
-    toast({
-        title: "Congratulations!",
-        description: "You've been upgraded to a Pro account. All signals are now unlocked.",
-    });
+    if (user) {
+      updateUserRole(user.uid, 'pro');
+      toast({
+          title: "Congratulations!",
+          description: "You've been upgraded to a Pro account. All signals are now unlocked.",
+      });
+    }
   }
 
   return (
@@ -125,8 +124,10 @@ export default function DashboardPage() {
         {!isPro && <div className="mb-8"><UpgradeAlert onUpgrade={handleUpgrade}/></div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {SIGNALS.map((signal, index) => {
-            const isLocked = !isPro && index >= 2;
+          {signals.map((signal, index) => {
+            const isLocked = !isPro && signal.status === 'premium';
+            const showSignal = isPro || user.role === 'admin' || signal.status === 'free';
+            if (!showSignal) return null;
             return <SignalCard key={signal.id} signal={signal} isLocked={isLocked}/>
           })}
         </div>

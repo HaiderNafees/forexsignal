@@ -1,4 +1,5 @@
-import { SIGNALS } from "@/lib/placeholder-data";
+"use client";
+
 import type { Signal } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, Target, ShieldX, ArrowRight } from
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 function SignalCard({ signal }: { signal: Signal }) {
   const isBuy = signal.action === 'BUY';
@@ -58,7 +60,8 @@ function SignalCard({ signal }: { signal: Signal }) {
 }
 
 export function SignalsPreview() {
-  const freeSignals = SIGNALS.filter(s => s.status === 'free').slice(0, 2);
+  const { signals } = useAuth();
+  const freeSignals = signals.filter(s => s.status === 'free').slice(0, 2);
 
   return (
     <section id="signals" className="py-16 md:py-24 bg-card">

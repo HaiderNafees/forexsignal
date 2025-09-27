@@ -2,9 +2,26 @@
 
 import { useContext } from 'react';
 import { AuthContext } from '@/contexts/auth-provider';
+import type { User, Signal } from '@/lib/types';
+
+type AuthContextType = {
+  user: User | null;
+  users: User[];
+  signals: Signal[];
+  loading: boolean;
+  login: (email: string, pass: string) => Promise<void>;
+  signup: (email: string, pass: string) => Promise<void>;
+  logout: () => void;
+  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
+  deleteUser: (userId: string) => void;
+  addSignal: (signal: Signal) => void;
+  updateSignal: (signal: Signal) => void;
+  deleteSignal: (signalId: string) => void;
+};
+
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext as React.Context<AuthContextType>);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }

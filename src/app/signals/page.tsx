@@ -1,4 +1,5 @@
-import { SIGNALS } from "@/lib/placeholder-data";
+"use client";
+
 import type { Signal } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, Target, ShieldX, ArrowRight, Lock 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 function SignalCard({ signal, isLocked }: { signal: Signal, isLocked: boolean }) {
   const isBuy = signal.action === 'BUY';
@@ -69,6 +71,9 @@ function SignalCard({ signal, isLocked }: { signal: Signal, isLocked: boolean })
 }
 
 export default function SignalsPage() {
+  const { user, signals } = useAuth();
+  const isPro = user?.role === 'pro';
+
   return (
     <section id="signals" className="py-16 md:py-24 bg-card pt-24">
       <div className="container mx-auto px-4 md:px-6">
@@ -79,8 +84,8 @@ export default function SignalsPage() {
             </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {SIGNALS.map((signal, index) => {
-            const isLocked = signal.status === 'premium';
+          {signals.map((signal) => {
+            const isLocked = signal.status === 'premium' && !isPro && user?.role !== 'admin';
             return <SignalCard key={signal.id} signal={signal} isLocked={isLocked} />
           })}
         </div>
