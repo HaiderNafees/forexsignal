@@ -4,7 +4,6 @@ import React, { useEffect, useRef, memo } from 'react';
 
 function TradingViewWidget() {
   const container = useRef<HTMLDivElement>(null);
-  const isDarkTheme = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
 
   useEffect(() => {
     if (container.current && container.current.children.length === 0) {
@@ -12,7 +11,7 @@ function TradingViewWidget() {
       script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js';
       script.type = 'text/javascript';
       script.async = true;
-      const widgetConfig = {
+      script.innerHTML = JSON.stringify({
         "symbols": [
           ["OANDA:XAUUSD|1D"]
         ],
@@ -20,9 +19,9 @@ function TradingViewWidget() {
         "width": "100%",
         "height": "100%",
         "locale": "en",
-        "colorTheme": isDarkTheme ? "dark" : "light",
+        "colorTheme": "light",
         "autosize": true,
-        "showVolume": false,
+        "showVolume": true,
         "showMA": false,
         "hideDateRanges": false,
         "hideMarketStatus": false,
@@ -34,7 +33,7 @@ function TradingViewWidget() {
         "noTimeScale": false,
         "valuesTracking": "1",
         "changeMode": "price-and-percent",
-        "chartType": "area",
+        "chartType": "candlesticks",
         "maLineColor": "#2962FF",
         "maLineWidth": 1,
         "maLength": 9,
@@ -46,11 +45,10 @@ function TradingViewWidget() {
         "borderDownColor": "#f7525f",
         "wickUpColor": "#22ab94",
         "wickDownColor": "#f7525f",
-      };
-      script.innerHTML = JSON.stringify(widgetConfig);
+      });
       container.current.appendChild(script);
     }
-  }, [isDarkTheme]);
+  }, []);
 
   return (
     <section className="py-16 md:py-24 bg-background">
