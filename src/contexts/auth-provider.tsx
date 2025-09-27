@@ -23,7 +23,6 @@ import {
     orderBy,
     getDoc
 } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
 
 type AuthContextType = {
   user: User | null;
@@ -51,6 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!auth) {
+        setLoading(false);
+        return;
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
@@ -79,28 +83,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
+    if (!db) return;
     const usersCollectionRef = collection(db, 'users');
     const q = query(usersCollectionRef, orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
       const allUsers = snapshot.docs.map(doc => ({ ...doc.data() as User, uid: doc.id }));
       setUsers(allUsers);
+    }, (error) => {
+        console.error("Error fetching users: ", error);
     });
 
     return () => unsubscribeUsers();
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const signalsCollectionRef = collection(db, 'signals');
     const q = query(signalsCollectionRef, orderBy('createdAt', 'desc'));
     const unsubscribeSignals = onSnapshot(q, (snapshot) => {
       const allSignals = snapshot.docs.map(doc => ({ ...doc.data() as Signal, id: doc.id }));
       setSignals(allSignals);
+    }, (error) => {
+        console.error("Error fetching signals: ", error);
     });
 
     return () => unsubscribeSignals();
   }, []);
 
   const login = useCallback(async (email: string, pass: string) => {
+    if (!auth || !db) return;
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
@@ -128,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, toast]);
 
   const signup = useCallback(async (email: string, pass: string) => {
+    if (!auth || !db) return;
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -158,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, toast]);
   
   const logout = useCallback(async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
       setUser(null);
@@ -173,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, toast]);
 
   const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
+    if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
       await updateDoc(userDocRef, { role });
@@ -190,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
+    if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
       await deleteDoc(userDocRef);
@@ -208,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
+    if (!db) return;
     const newId = doc(collection(db, "signals")).id;
     const newSignal: Omit<Signal, 'id'> & { createdAt: string } = {
         ...signalData,
@@ -227,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
+    if (!db) return;
     const signalDocRef = doc(db, 'signals', signal.id);
     try {
       await updateDoc(signalDocRef, { ...signal });
@@ -241,6 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
   
   const deleteSignal = useCallback(async (signalId: string) => {
+    if (!db) return;
     const signalDocRef = doc(db, 'signals', signalId);
     try {
         await deleteDoc(signalDocRef);
