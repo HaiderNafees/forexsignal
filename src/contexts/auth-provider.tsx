@@ -131,7 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (doc.exists()) {
             setUser({ uid: doc.id, ...doc.data() } as User);
           } else {
-            // This can happen if the user record is deleted from Firestore but not Auth
             setUser(null);
           }
           setLoading(false);
@@ -206,7 +205,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
         
-        // Ensure user state is set before redirecting
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
             setUser({ uid: userDoc.id, ...userDoc.data() } as User);
