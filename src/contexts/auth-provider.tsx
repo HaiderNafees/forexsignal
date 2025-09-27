@@ -137,15 +137,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUsers(prevUsers => [...prevUsers, newUser]);
     
-    // Don't log in user automatically.
-    // setUser(newUser); 
-    
     toast({
       title: 'Account Created',
       description: 'Please proceed to login.',
     });
 
-    router.push('/signup/confirm');
+    router.push('/login');
     setLoading(false);
   }, [router, toast, users]);
   
