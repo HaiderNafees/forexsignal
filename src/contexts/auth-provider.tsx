@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribeUser();
       } else {
         setUser(null);
-        setLoading(false); // Fix: Ensure loading is false when no user is logged in
+        setLoading(false);
       }
     });
 
@@ -212,7 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
         
-        // Fix: Explicitly fetch the user doc to populate the state correctly
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
             setUser({ uid: userDoc.id, ...userDoc.data() } as User);
