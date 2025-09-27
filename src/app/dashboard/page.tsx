@@ -11,7 +11,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, Lock, ArrowRight, Star } from 'luc
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 function SignalCard({ signal, isLocked }: { signal: Signal; isLocked: boolean }) {
   const isBuy = signal.action === 'BUY';
@@ -54,15 +54,17 @@ function SignalCard({ signal, isLocked }: { signal: Signal; isLocked: boolean })
   );
 }
 
-function UpgradeAlert({ onUpgrade }: { onUpgrade: () => void }) {
+function UpgradeAlert() {
     return (
         <Alert>
             <Star className="h-4 w-4" />
             <AlertTitle className="font-headline">Unlock Your Full Potential!</AlertTitle>
             <AlertDescription className="flex justify-between items-center">
                 You're currently on the free plan with limited signal access.
-                <Button onClick={onUpgrade} size="sm" className="ml-4">
+                <Button asChild size="sm" className="ml-4">
+                  <Link href="/pricing">
                     Upgrade to Pro <ArrowRight className="ml-2 h-4 w-4"/>
+                  </Link>
                 </Button>
             </AlertDescription>
         </Alert>
@@ -70,9 +72,8 @@ function UpgradeAlert({ onUpgrade }: { onUpgrade: () => void }) {
 }
 
 export default function DashboardPage() {
-  const { user, signals, loading, updateUserRole } = useAuth();
+  const { user, signals, loading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
   
   React.useEffect(() => {
     if (!loading && !user) {
@@ -101,16 +102,6 @@ export default function DashboardPage() {
 
   const isPro = user.role === 'pro';
 
-  const handleUpgrade = () => {
-    if (user) {
-      updateUserRole(user.uid, 'pro');
-      toast({
-          title: "Congratulations!",
-          description: "You've been upgraded to a Pro account. All signals are now unlocked.",
-      });
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background pt-24">
       <div className="container mx-auto px-4 md:px-6 py-8">
@@ -121,7 +112,7 @@ export default function DashboardPage() {
           </p>
         </header>
 
-        {!isPro && <div className="mb-8"><UpgradeAlert onUpgrade={handleUpgrade}/></div>}
+        {!isPro && <div className="mb-8"><UpgradeAlert /></div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {signals.map((signal, index) => {

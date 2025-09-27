@@ -63,7 +63,7 @@ export function Header() {
               <UserNav />
             ) : (
               <>
-                <Button variant="ghost" asChild className={cn(isScrolled ? "text-primary" : "text-white hover:bg-white/10 hover:text-white")}>
+                <Button variant="ghost" asChild className={cn(isScrolled ? "" : "text-white hover:bg-white/10 hover:text-white")}>
                   <Link href="/login">Login</Link>
                 </Button>
                 <Button asChild>
@@ -110,18 +110,24 @@ export function Header() {
                       ) : user ? (
                         <div className="flex flex-col gap-4">
                           <p className="text-center text-muted-foreground">{user.email}</p>
-                          <Button asChild className="w-full">
-                            <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>Dashboard</Link>
-                          </Button>
+                          <SheetClose asChild>
+                            <Button asChild className="w-full">
+                              <Link href={user.role === 'admin' ? '/admin' : '/dashboard'}>Dashboard</Link>
+                            </Button>
+                          </SheetClose>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-4">
-                          <Button asChild variant="outline" className="w-full">
-                            <Link href="/login">Login</Link>
-                          </Button>
+                          <SheetClose asChild>
+                            <Button asChild variant="outline" className="w-full">
+                              <Link href="/login">Login</Link>
+                            </Button>
+                          </SheetClose>
+                          <SheetClose asChild>
                           <Button asChild className="w-full">
                             <Link href="/signup">Sign Up</Link>
                           </Button>
+                          </SheetClose>
                         </div>
                       )}
                   </div>
@@ -129,7 +135,7 @@ export function Header() {
               </SheetContent>
             </Sheet>
           </div>
-           {user && <div className="md:hidden"><UserNav /></div>}
+           {user && !loading && <div className="md:hidden"><UserNav /></div>}
         </div>
       </div>
     </header>

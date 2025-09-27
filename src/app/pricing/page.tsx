@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Check } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 const tiers = [
   {
@@ -38,6 +41,31 @@ const tiers = [
 ];
 
 export default function PricingPage() {
+    const { user, updateUserRole } = useAuth();
+    const { toast } = useToast();
+    const router = useRouter();
+
+    const handleUpgrade = () => {
+        if (!user) {
+            router.push('/signup');
+            return;
+        }
+        if (user.role === 'free') {
+            updateUserRole(user.uid, 'pro');
+            toast({
+                title: "Congratulations!",
+                description: "You've been upgraded to a Pro account. All signals are now unlocked.",
+            });
+            router.push('/dashboard');
+        } else if (user.role === 'pro') {
+             toast({
+                title: "You are already a Pro!",
+                description: "Your account is already upgraded.",
+            });
+        }
+    };
+
+
   return (
     <div className="bg-card pt-24">
       <div className="container mx-auto px-4 md:px-6 py-16">
@@ -70,9 +98,15 @@ export default function PricingPage() {
                 </ul>
               </CardContent>
               <CardFooter>
-                <Button asChild className="w-full" variant={tier.variant as any}>
-                  <Link href={tier.href}>{tier.cta}</Link>
-                </Button>
+                 {tier.name === 'Pro' ? (
+                  <Button onClick={handleUpgrade} className="w-full" variant={tier.variant as any}>
+                    {user?.role === 'pro' ? 'You are Pro' : tier.cta}
+                  </Button>
+                ) : (
+                  <Button asChild className="w-full" variant={tier.variant as any}>
+                    <Link href={tier.href}>{tier.cta}</Link>
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
