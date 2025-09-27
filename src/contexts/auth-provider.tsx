@@ -205,6 +205,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdAt: new Date().toISOString(),
         };
         await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+        
+        // Ensure user state is set before redirecting
+        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        if (userDoc.exists()) {
+            setUser({ uid: userDoc.id, ...userDoc.data() } as User);
+        }
+
         toast({
             title: 'Account Created',
             description: 'You have been successfully signed up! Redirecting to dashboard...',
