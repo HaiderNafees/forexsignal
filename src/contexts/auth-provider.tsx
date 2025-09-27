@@ -62,15 +62,18 @@ async function seedInitialData(auth: Auth, db: Firestore) {
     try {
       // We try to sign in first to see if the auth user exists
       try {
-        const existingUserCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-        // If sign-in succeeds, but Firestore doc was missing, create it
-        const adminUserData: Omit<User, 'uid'> = {
-          email: adminEmail,
-          role: 'admin',
-          createdAt: new Date().toISOString(),
-        };
-        await setDoc(doc(db, 'users', existingUserCredential.user.uid), adminUserData);
-        console.log("Admin user existed in Auth, Firestore document created.");
+        await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+        // If sign-in succeeds, but Firestore doc was missing, this shouldn't happen with onAuthStateChanged logic, but as a fallback:
+         const authUser = auth.currentUser;
+         if (authUser) {
+            const adminUserData: Omit<User, 'uid'> = {
+                email: adminEmail,
+                role: 'admin',
+                createdAt: new Date().toISOString(),
+            };
+            await setDoc(doc(db, 'users', authUser.uid), adminUserData);
+            console.log("Admin user existed in Auth, Firestore document created.");
+         }
       } catch (error: any) {
         // If sign-in fails because the user doesn't exist, create both Auth user and Firestore doc
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
@@ -117,20 +120,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { auth, db } = getFirebase();
 
     if (!auth || !db) {
+        console.error("Firebase not initialized");
         setLoading(false);
         return;
     }
     
+    // Don't await this, let it run in the background
     seedInitialData(auth, db);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        setLoading(true);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
           if (doc.exists()) {
             setUser({ uid: doc.id, ...doc.data() } as User);
           } else {
+            // This can happen if the firestore doc is deleted but auth user still exists
             setUser(null);
           }
           setLoading(false);
@@ -138,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribeUser();
       } else {
         setUser(null);
-        setLoading(false);
+        setLoading(false); // Fix: Ensure loading is false when no user is logged in
       }
     });
 
@@ -178,14 +183,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const path = userData.role === 'admin' ? '/admin' : '/dashboard';
           router.push(path);
       } else {
-          throw new Error("User data not found in database.");
+          // This case should be rare, but handle it
+          await signOut(auth); // Sign out the user as their DB record is missing
+          throw new Error("User data not found in database. Please sign up again.");
       }
     } catch (error: any) {
         console.error("Login Error:", error);
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: error.message || 'Invalid credentials. Please try again.',
+        description: error.code === 'auth/invalid-credential' ? 'Invalid credentials. Please try again.' : error.message,
       });
     } finally {
         setLoading(false);
@@ -205,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
         
+        // Fix: Explicitly fetch the user doc to populate the state correctly
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
             setUser({ uid: userDoc.id, ...userDoc.data() } as User);
@@ -258,11 +266,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const deleteUser = useCallback(async (userId: string) => {
     const { db } = getFirebase();
     if (!db) return;
+    // In a real app, you would need a Cloud Function to delete the auth user.
+    // This only deletes the Firestore record.
     const userDocRef = doc(db, 'users', userId);
     try {
       await deleteDoc(userDocRef);
-      // Note: This does not delete the user from Firebase Auth.
-      // In a real app, you would need a Cloud Function for that.
       toast({
         variant: 'destructive',
         title: 'User Removed',
@@ -302,8 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { db } = getFirebase();
     if (!db) return;
     const signalDocRef = doc(db, 'signals', signal.id);
-    const updateData = { ...signal };
-    delete (updateData as Partial<Signal>).id; // Do not write the id inside the document
+    const { id, ...updateData } = signal; // Do not write the id inside the document
     try {
       await updateDoc(signalDocRef, updateData);
       toast({ title: "Signal Updated" });
@@ -357,3 +364,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+    
