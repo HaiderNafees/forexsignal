@@ -86,7 +86,7 @@ export default function DashboardPage() {
 
   if (loading || !user) {
     return (
-      <div className="container mx-auto py-10 px-4">
+      <div className="container mx-auto py-10 px-4 pt-24">
         <div className="space-y-4">
           <Skeleton className="h-12 w-1/4" />
           <Skeleton className="h-8 w-1/2" />

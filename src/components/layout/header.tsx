@@ -9,48 +9,70 @@ import { UserNav } from '@/components/auth/user-nav';
 import { Logo } from '@/components/logo';
 import { Menu, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
+import { usePathname } from 'next/navigation';
 
 export function Header() {
   const { user, loading } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
+  const pathname = usePathname();
+  
+  const isHomePage = pathname === '/';
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
+    if (isHomePage) {
+      window.addEventListener('scroll', handleScroll);
+      return () => {
+        window.removeEventListener('scroll', handleScroll);
+      };
+    } else {
+        setIsScrolled(true);
+    }
+  }, [isHomePage]);
 
   const navLinks = [
     { href: "/features", label: "Features" },
     { href: "/signals", label: "Signals" },
     { href: "/pricing", label: "Pricing" },
   ];
+  
+  const headerClasses = cn(
+    "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+    isScrolled || !isHomePage ? "bg-card/80 shadow-md backdrop-blur-sm" : "bg-transparent"
+  );
+  
+  const linkClasses = cn(
+      "text-sm font-medium transition-colors hover:text-primary",
+      isScrolled || !isHomePage ? "text-foreground" : "text-gray-200 hover:text-white"
+  );
+
+  const mobileLinkClasses = cn(
+      "text-foreground hover:text-primary transition-colors"
+  );
+
+  const mobileTriggerClasses = cn(
+      isScrolled || !isHomePage ? "text-primary" : "text-white hover:bg-white/10 hover:text-white"
+  )
+
+  const logoClasses = cn(
+    isScrolled || !isHomePage ? "text-primary" : "text-white"
+  )
+  
+  const loginButtonClasses = cn(
+      isScrolled || !isHomePage ? "" : "text-white hover:bg-white/10 hover:text-white"
+  )
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        isScrolled ? "bg-card/80 shadow-md backdrop-blur-sm" : "bg-transparent"
-      )}
-    >
+    <header className={headerClasses}>
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
         <Link href="/" aria-label="ForexEdge Home">
-          <Logo className={cn(isScrolled ? "text-primary" : "text-white")} />
+          <Logo className={logoClasses} />
         </Link>
         <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isScrolled ? "text-foreground" : "text-gray-200 hover:text-white"
-              )}
-            >
+            <Link key={link.href} href={link.href} className={linkClasses}>
               {link.label}
             </Link>
           ))}
@@ -63,7 +85,7 @@ export function Header() {
               <UserNav />
             ) : (
               <>
-                <Button variant="ghost" asChild className={cn(isScrolled ? "" : "text-white hover:bg-white/10 hover:text-white")}>
+                <Button variant="ghost" asChild className={loginButtonClasses}>
                   <Link href="/login">Login</Link>
                 </Button>
                 <Button asChild>
@@ -77,7 +99,7 @@ export function Header() {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className={cn(isScrolled ? "text-primary" : "text-white hover:bg-white/10 hover:text-white")}>
+                <Button variant="ghost" size="icon" className={mobileTriggerClasses}>
                   <Menu className="h-6 w-6" />
                   <span className="sr-only">Open menu</span>
                 </Button>
@@ -98,7 +120,7 @@ export function Header() {
                   <nav className="flex flex-col gap-6 text-lg font-medium mt-8">
                     {navLinks.map((link) => (
                       <SheetClose asChild key={link.href}>
-                        <Link href={link.href} className="text-foreground hover:text-primary transition-colors">
+                        <Link href={link.href} className={mobileLinkClasses}>
                           {link.label}
                         </Link>
                       </SheetClose>
