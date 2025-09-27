@@ -3,12 +3,14 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration is now hardcoded
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  "projectId": "studio-7266010797-fc857",
-  "appId": "1:1042174511317:web:1e87e6a61932d20ade3a5c",
-  "apiKey": "AIzaSyDLXBA-IFpLqr7wQ9BT9G-mgY94qWFbGUY",
-  "authDomain": "studio-7266010797-fc857.firebaseapp.com",
+    apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
+    authDomain: "forexsignal-371b3.firebaseapp.com",
+    projectId: "forexsignal-371b3",
+    storageBucket: "forexsignal-371b3.appspot.com",
+    messagingSenderId: "617111923339",
+    appId: "1:617111923339:web:063a079794acf64a3e028e",
 };
 
 let app: FirebaseApp;
@@ -17,15 +19,13 @@ let db: Firestore;
 
 // This function initializes Firebase and returns the services
 function getFirebase() {
-  if (!app) {
-    if (getApps().length) {
-      app = getApp();
-    } else {
-      app = initializeApp(firebaseConfig);
-    }
-    auth = getAuth(app);
-    db = getFirestore(app);
+  if (getApps().length) {
+    app = getApp();
+  } else {
+    app = initializeApp(firebaseConfig);
   }
+  auth = getAuth(app);
+  db = getFirestore(app);
 
   return { app, auth, db };
 }
