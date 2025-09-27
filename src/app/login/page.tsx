@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -33,7 +34,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 pt-24">
       <Card className="w-full max-w-md animate-in fade-in-50 duration-500">
         <CardHeader className="text-center">
           <Link href="/" className="flex justify-center mb-4">

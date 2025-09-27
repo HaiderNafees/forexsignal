@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User, Signal } from '@/lib/types';
@@ -6,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { USERS, SIGNALS as INITIAL_SIGNALS } from '@/lib/placeholder-data';
 import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 type AuthContextType = {
   user: User | null;
@@ -35,10 +38,12 @@ const getInitialState = <T,>(key: string, fallback: T): T => {
         // Ensure that for users, we don't return an empty array if there's nothing in storage
         // and instead fall back to the initial dummy data. This prevents existing users from disappearing.
         if (key === 'forex-edge-all-users' && Array.isArray(parsed) && parsed.length === 0) {
+            localStorage.setItem(key, JSON.stringify(fallback));
             return fallback;
         }
         return parsed;
     }
+     localStorage.setItem(key, JSON.stringify(fallback));
     return fallback;
   } catch (error) {
     console.error(`Failed to parse ${key} from localStorage`, error);
@@ -131,10 +136,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setUsers(prevUsers => [...prevUsers, newUser]);
-    setUser(newUser);
     
-    toast({ title: 'Signup Successful!', description: 'Welcome to ForexEdge!' });
-    router.push('/dashboard');
+    // Don't log in user automatically.
+    // setUser(newUser); 
+    
+    toast({
+      title: 'Confirmation Required',
+      description: 'A confirmation link has been sent to your email. (Check the link below)',
+      action: (
+        <Button asChild variant="link">
+          <Link href="/login">Click to Confirm & Login</Link>
+        </Button>
+      ),
+      duration: 10000,
+    });
+
+    router.push('/signup/confirm');
     setLoading(false);
   }, [router, toast, users]);
   
