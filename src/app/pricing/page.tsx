@@ -1,3 +1,4 @@
+
 "use client"
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,17 @@ import { Check } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const tiers = [
   {
@@ -45,7 +57,7 @@ export default function PricingPage() {
     const { toast } = useToast();
     const router = useRouter();
 
-    const handleUpgrade = () => {
+    const handleUpgradeConfirm = () => {
         if (!user) {
             router.push('/signup');
             return;
@@ -64,6 +76,13 @@ export default function PricingPage() {
             });
         }
     };
+    
+    const handleGoProClick = () => {
+        if (!user) {
+            router.push('/signup');
+        }
+        // If user is already pro, do nothing. The button is disabled anyway.
+    }
 
 
   return (
@@ -99,9 +118,33 @@ export default function PricingPage() {
               </CardContent>
               <CardFooter>
                  {tier.name === 'Pro' ? (
-                  <Button onClick={handleUpgrade} className="w-full" variant={tier.variant as any}>
-                    {user?.role === 'pro' ? 'You are Pro' : tier.cta}
-                  </Button>
+                   user && user.role === 'pro' ? (
+                      <Button className="w-full" variant={tier.variant as any} disabled>
+                          You are already a Pro
+                      </Button>
+                   ) : user && user.role === 'free' ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button className="w-full" variant={tier.variant as any}>Go Pro</Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirm Your Upgrade</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            You are about to upgrade to the Pro plan for $29/month. This will be charged to your default payment method.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleUpgradeConfirm}>Confirm Payment</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                     <Button onClick={handleGoProClick} className="w-full" variant={tier.variant as any}>
+                        {tier.cta}
+                      </Button>
+                  )
                 ) : (
                   <Button asChild className="w-full" variant={tier.variant as any}>
                     <Link href={tier.href}>{tier.cta}</Link>
