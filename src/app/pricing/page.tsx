@@ -118,16 +118,16 @@ export default function PricingPage() {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Complete Your Upgrade</AlertDialogTitle>
-                          <AlertDialogDescription>
+                          <AlertDialogDescription asChild>
                             <div className="space-y-4 text-sm text-foreground">
-                                <p>To upgrade to the Pro plan for $29/month, please make a payment to the following account:</p>
+                                <div>To upgrade to the Pro plan for $29/month, please make a payment to the following account:</div>
                                 <div className="p-4 rounded-md border bg-muted">
-                                    <p><span className="font-semibold">Bank:</span> Global Trading Bank</p>
-                                    <p><span className="font-semibold">Account Name:</span> ForexEdge Inc.</p>
-                                    <p><span className="font-semibold">Account Number:</span> 1234567890</p>
-                                    <p><span className="font-semibold">Reference:</span> {user.email}</p>
+                                    <div><span className="font-semibold">Bank:</span> Global Trading Bank</div>
+                                    <div><span className="font-semibold">Account Name:</span> ForexEdge Inc.</div>
+                                    <div><span className="font-semibold">Account Number:</span> 1234567890</div>
+                                    <div><span className="font-semibold">Reference:</span> {user.email}</div>
                                 </div>
-                                <p className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded once payment is verified (usually within 48 hours).</p>
+                                <div className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded once payment is verified (usually within 48 hours).</div>
                             </div>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
