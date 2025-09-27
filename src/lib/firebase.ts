@@ -4,39 +4,30 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration is now loaded from environment variables
+// Your web app's Firebase configuration is now hardcoded
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  "projectId": "studio-7266010797-fc857",
+  "appId": "1:1042174511317:web:1e87e6a61932d20ade3a5c",
+  "apiKey": "AIzaSyDLXBA-IFpLqr7wQ9BT9G-mgY94qWFbGUY",
+  "authDomain": "studio-7266010797-fc857.firebaseapp.com",
+  "messagingSenderId": "1042174511317"
 };
 
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
+// This function initializes Firebase and returns the services
 function getFirebase() {
-  if (
-    !firebaseConfig.apiKey ||
-    !firebaseConfig.authDomain ||
-    !firebaseConfig.projectId ||
-    !firebaseConfig.appId
-  ) {
-    console.error("Firebase configuration is missing. Make sure all NEXT_PUBLIC_FIREBASE_* environment variables are set.");
-    // We don't throw an error here to prevent server-side build failures.
-    // The app will fail gracefully on the client if config is missing.
-    return {};
+  if (!app) {
+    if (getApps().length) {
+      app = getApp();
+    } else {
+      app = initializeApp(firebaseConfig);
+    }
+    auth = getAuth(app);
+    db = getFirestore(app);
   }
-  
-  if (getApps().length) {
-    app = getApp();
-  } else {
-    app = initializeApp(firebaseConfig);
-  }
-  auth = getAuth(app);
-  db = getFirestore(app);
 
   return { app, auth, db };
 }
