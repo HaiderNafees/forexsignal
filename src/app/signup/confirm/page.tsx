@@ -12,14 +12,14 @@ export default function SignupConfirmPage() {
           <div className="flex justify-center mb-4">
             <MailCheck className="h-16 w-16 text-green-500" />
           </div>
-          <CardTitle className="font-headline text-2xl">Confirm Your Email</CardTitle>
+          <CardTitle className="font-headline text-2xl">Account Created!</CardTitle>
           <CardDescription>
-            We've sent a confirmation link to your email address. Please click the link to activate your account.
+            Your account has been successfully created. You can now log in.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            If you don't see the email, please check your spam folder. A simulated confirmation link has also been provided in a toast notification.
+            In a real application, you would receive an email to confirm your account before you can log in.
           </p>
           <Button asChild>
             <Link href="/login">Go to Login</Link>

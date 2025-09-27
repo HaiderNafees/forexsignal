@@ -141,14 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // setUser(newUser); 
     
     toast({
-      title: 'Confirmation Required',
-      description: 'A confirmation link has been sent to your email. (Check the link below)',
-      action: (
-        <Button asChild variant="link">
-          <Link href="/login">Click to Confirm & Login</Link>
-        </Button>
-      ),
-      duration: 10000,
+      title: 'Account Created',
+      description: 'Please proceed to login.',
     });
 
     router.push('/signup/confirm');
