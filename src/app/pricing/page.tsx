@@ -53,28 +53,16 @@ const tiers = [
 ];
 
 export default function PricingPage() {
-    const { user, updateUserRole } = useAuth();
+    const { user } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
 
     const handleUpgradeConfirm = () => {
-        if (!user) {
-            router.push('/signup');
-            return;
-        }
-        if (user.role === 'free') {
-            updateUserRole(user.uid, 'pro');
-            toast({
-                title: "Congratulations!",
-                description: "You've been upgraded to a Pro account. All signals are now unlocked.",
-            });
-            router.push('/dashboard');
-        } else if (user.role === 'pro') {
-             toast({
-                title: "You are already a Pro!",
-                description: "Your account is already upgraded.",
-            });
-        }
+        toast({
+            title: "Payment Submitted!",
+            description: "Your payment is being verified. You will receive an email confirmation and your account will be upgraded to Pro within 48 hours.",
+        });
+        router.push('/dashboard');
     };
     
     const handleGoProClick = () => {
@@ -129,14 +117,23 @@ export default function PricingPage() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Confirm Your Upgrade</AlertDialogTitle>
+                          <AlertDialogTitle>Complete Your Upgrade</AlertDialogTitle>
                           <AlertDialogDescription>
-                            You are about to upgrade to the Pro plan for $29/month. This will be charged to your default payment method.
+                            <div className="space-y-4 text-sm text-foreground">
+                                <p>To upgrade to the Pro plan for $29/month, please make a payment to the following account:</p>
+                                <div className="p-4 rounded-md border bg-muted">
+                                    <p><span className="font-semibold">Bank:</span> Global Trading Bank</p>
+                                    <p><span className="font-semibold">Account Name:</span> ForexEdge Inc.</p>
+                                    <p><span className="font-semibold">Account Number:</span> 1234567890</p>
+                                    <p><span className="font-semibold">Reference:</span> {user.email}</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded once payment is verified (usually within 48 hours).</p>
+                            </div>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleUpgradeConfirm}>Confirm Payment</AlertDialogAction>
+                          <AlertDialogAction onClick={handleUpgradeConfirm}>I Have Made The Payment</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -158,3 +155,4 @@ export default function PricingPage() {
     </div>
   );
 }
+
