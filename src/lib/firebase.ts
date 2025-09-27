@@ -12,6 +12,18 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
+// Add a check to ensure all required environment variables are present.
+if (
+  !firebaseConfig.apiKey ||
+  !firebaseConfig.authDomain ||
+  !firebaseConfig.projectId ||
+  !firebaseConfig.appId
+) {
+  throw new Error(
+    "Firebase configuration is missing. Make sure all NEXT_PUBLIC_FIREBASE_* environment variables are set."
+  );
+}
+
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
