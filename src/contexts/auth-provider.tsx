@@ -124,8 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     seedInitialData(auth, db);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      setLoading(true);
       if (firebaseUser) {
+        setLoading(true);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
           if (doc.exists()) {
