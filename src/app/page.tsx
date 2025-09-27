@@ -1,13 +1,19 @@
+import { Cta } from "@/components/home/cta";
+import { Faq } from "@/components/home/faq";
+import { FeaturesOverview } from "@/components/home/features-overview";
 import { Hero } from "@/components/home/hero";
 import { SignalsPreview } from "@/components/home/signals-preview";
-import TradingViewWidget from "@/components/home/trading-view-widget";
+import { Testimonials } from "@/components/home/testimonials";
 
 export default function Home() {
   return (
     <>
       <Hero />
       <SignalsPreview />
-      <TradingViewWidget />
+      <FeaturesOverview />
+      <Testimonials />
+      <Faq />
+      <Cta />
     </>
   );
 }

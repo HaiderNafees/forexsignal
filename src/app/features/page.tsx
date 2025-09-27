@@ -1,31 +1,37 @@
 "use client"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, BarChart2, Zap, Users, ShieldCheck, Gem } from "lucide-react";
 
 const features = [
   {
-    title: "Real-Time Signals",
-    description: "Get instant buy/sell signals delivered to your dashboard, sourced from professional traders and advanced algorithms."
+    title: "Real-Time Forex Signals",
+    description: "Receive instant, high-probability buy/sell signals sourced from our team of professional traders and proprietary algorithms. Never miss a market move.",
+    icon: Zap
   },
   {
-    title: "Advanced Analytics",
-    description: "Dive deep into market trends with our comprehensive analytics tools and live charts."
+    title: "Advanced Market Analytics",
+    description: "Go beyond basic charts. Our dashboard provides comprehensive analytics, trend analysis, and volatility indicators to give you a complete market picture.",
+    icon: BarChart2
   },
   {
-    title: "Pro-Level Insights",
-    description: "Unlock premium content and in-depth analysis to inform your trading decisions."
+    title: "Pro-Level Trading Insights",
+    description: "Upgrade to Pro to unlock exclusive content, including in-depth market analysis, strategy breakdowns, and long-term outlooks from seasoned experts.",
+    icon: Gem
   },
   {
     title: "User-Friendly Dashboard",
-    description: "A clean, intuitive interface that lets you focus on what matters most: your trades."
+    description: "Our clean, intuitive interface is designed for focus. Easily track signals, monitor performance, and access analytics from one centralized hub.",
+    icon: CheckCircle
   },
-    {
-    title: "Community & Support",
-    description: "Join a community of traders and get support from our team of experts."
+  {
+    title: "Thriving Trader Community",
+    description: "Join a vibrant community of fellow traders. Share ideas, discuss strategies, and learn from others in our exclusive Pro-member channels.",
+    icon: Users
   },
-    {
-    title: "Cross-Platform Access",
-    description: "Access your dashboard and signals from any device, anywhere in the world."
+  {
+    title: "Risk Management Tools",
+    description: "Every signal comes with clear entry, stop-loss, and take-profit levels, helping you manage your risk effectively and trade with confidence.",
+    icon: ShieldCheck
   }
 ];
 
@@ -36,24 +42,24 @@ export default function FeaturesPage() {
         <header className="text-center mb-12">
           <h1 className="font-headline text-4xl md:text-5xl font-bold">Platform Features</h1>
           <p className="text-muted-foreground mt-3 max-w-2xl mx-auto">
-            Everything you need to gain a competitive edge in the forex market.
+            Everything you need to gain a competitive edge in the forex market, from high-quality signals to advanced analytics.
           </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <Card key={index} className="flex flex-col">
+            <Card key={index} className="flex flex-col transform transition-all duration-300 hover:scale-105 hover:shadow-xl">
               <CardHeader>
-                <div className="flex items-start gap-4">
-                  <div className="bg-primary/10 text-primary p-2 rounded-full">
-                     <CheckCircle className="h-6 w-6" />
+                <div className="flex items-center gap-4">
+                  <div className="bg-primary/10 text-primary p-3 rounded-full">
+                     <feature.icon className="h-6 w-6" />
                   </div>
-                  <div>
-                    <CardTitle className="font-headline">{feature.title}</CardTitle>
-                    <CardDescription className="mt-1">{feature.description}</CardDescription>
-                  </div>
+                   <CardTitle className="font-headline text-xl">{feature.title}</CardTitle>
                 </div>
               </CardHeader>
+              <CardContent>
+                <CardDescription>{feature.description}</CardDescription>
+              </CardContent>
             </Card>
           ))}
         </div>
