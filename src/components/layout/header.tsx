@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -30,12 +31,14 @@ export function Header() {
     } else {
         setIsScrolled(true);
     }
-  }, [isHomePage]);
+  }, [isHomePage, pathname]);
 
   const navLinks = [
     { href: "/features", label: "Features" },
     { href: "/signals", label: "Signals" },
     { href: "/pricing", label: "Pricing" },
+    { href: "/about", label: "About" },
+    { href: "/contact", label: "Contact" },
   ];
   
   const headerClasses = cn(
