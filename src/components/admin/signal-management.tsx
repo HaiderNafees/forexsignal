@@ -1,0 +1,184 @@
+"use client";
+
+import React from "react";
+import { SIGNALS } from "@/lib/placeholder-data";
+import { Signal } from "@/lib/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { MoreHorizontal, PlusCircle } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { cn } from "@/lib/utils";
+
+
+function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, onSave: (signal: Signal) => void, onOpenChange: (open: boolean) => void }) {
+    const [editedSignal, setEditedSignal] = React.useState<Partial<Signal>>(signal || {});
+    
+    const handleSave = () => {
+        const newSignal = {
+            id: signal?.id || `sig-${Date.now()}`,
+            createdAt: signal?.createdAt || new Date().toISOString(),
+            ...editedSignal
+        } as Signal;
+        onSave(newSignal);
+    }
+    
+    return (
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{signal ? 'Edit Signal' : 'Create Signal'}</DialogTitle>
+            <DialogDescription>
+              {signal ? 'Update the details for this signal.' : 'Fill in the details for the new signal.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pair" className="text-right">Pair</Label>
+              <Input id="pair" value={editedSignal.pair || ''} onChange={e => setEditedSignal({...editedSignal, pair: e.target.value})} className="col-span-3" />
+            </div>
+            {/* Add other fields here: title, action, entry, stopLoss, takeProfit, status */}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
+            <Button onClick={handleSave}>Save changes</Button>
+          </DialogFooter>
+        </DialogContent>
+    )
+}
+
+export function SignalManagement() {
+  const [signals, setSignals] = React.useState<Signal[]>(SIGNALS);
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [selectedSignal, setSelectedSignal] = React.useState<Signal | null>(null);
+
+  const handleDelete = (signalId: string) => {
+    setSignals(signals.filter(s => s.id !== signalId));
+    toast({
+        variant: "destructive",
+        title: "Signal Deleted",
+        description: "The signal has been removed successfully."
+    })
+  }
+  
+  const handleSaveSignal = (signal: Signal) => {
+    const exists = signals.some(s => s.id === signal.id);
+    if (exists) {
+        setSignals(signals.map(s => s.id === signal.id ? signal : s));
+        toast({ title: "Signal Updated" });
+    } else {
+        setSignals([signal, ...signals]);
+        toast({ title: "Signal Created" });
+    }
+    setIsDialogOpen(false);
+    setSelectedSignal(null);
+  }
+
+  const openEditDialog = (signal: Signal) => {
+    setSelectedSignal(signal);
+    setIsDialogOpen(true);
+  }
+
+  const openCreateDialog = () => {
+    setSelectedSignal(null);
+    setIsDialogOpen(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-medium">Signal Management</h3>
+          <p className="text-sm text-muted-foreground">
+            Create, update, and manage all forex signals.
+          </p>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={openCreateDialog}>
+                    <PlusCircle className="mr-2 h-4 w-4"/>
+                    Create Signal
+                </Button>
+            </DialogTrigger>
+            <SignalForm signal={selectedSignal} onSave={handleSaveSignal} onOpenChange={setIsDialogOpen} />
+        </Dialog>
+      </div>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Pair</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Entry</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {signals.map((signal) => (
+              <TableRow key={signal.id}>
+                <TableCell className="font-medium">{signal.pair}</TableCell>
+                <TableCell>
+                    <Badge variant={signal.action === "BUY" ? "default" : "destructive"} className={cn(signal.action === 'BUY' ? "bg-green-500" : "bg-red-500", "text-white")}>
+                        {signal.action}
+                    </Badge>
+                </TableCell>
+                <TableCell>{signal.entry.toFixed(4)}</TableCell>
+                <TableCell>
+                    <Badge variant={signal.status === "premium" ? "outline" : "secondary"}>
+                        {signal.status}
+                    </Badge>
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button aria-haspopup="true" size="icon" variant="ghost">
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Toggle menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onSelect={() => openEditDialog(signal)}>Edit</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => handleDelete(signal.id)} className="text-destructive">Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

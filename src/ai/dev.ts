@@ -1,1 +1,4 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/admin-assisted-signal-management.ts';
