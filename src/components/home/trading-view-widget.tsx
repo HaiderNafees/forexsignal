@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, memo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 
 function TradingViewWidget() {
   const container = useRef<HTMLDivElement>(null);
@@ -10,21 +9,43 @@ function TradingViewWidget() {
   useEffect(() => {
     if (container.current && container.current.children.length === 0) {
       const script = document.createElement('script');
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js';
       script.type = 'text/javascript';
       script.async = true;
       const widgetConfig = {
+        "symbols": [
+          ["OANDA:XAUUSD|1D"]
+        ],
+        "chartOnly": false,
         "width": "100%",
         "height": "100%",
-        "symbol": "OANDA:XAUUSD",
-        "interval": "D",
-        "timezone": "Etc/UTC",
-        "theme": isDarkTheme ? "dark" : "light",
-        "style": "1",
         "locale": "en",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "support_host": "https://www.tradingview.com"
+        "colorTheme": isDarkTheme ? "dark" : "light",
+        "autosize": true,
+        "showVolume": false,
+        "showMA": false,
+        "hideDateRanges": false,
+        "hideMarketStatus": false,
+        "hideSymbolLogo": false,
+        "scalePosition": "right",
+        "scaleMode": "Normal",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
+        "fontSize": "10",
+        "noTimeScale": false,
+        "valuesTracking": "1",
+        "changeMode": "price-and-percent",
+        "chartType": "area",
+        "maLineColor": "#2962FF",
+        "maLineWidth": 1,
+        "maLength": 9,
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "widgetFontColor": "rgb(106, 109, 120)",
+        "upColor": "#22ab94",
+        "downColor": "#f7525f",
+        "borderUpColor": "#22ab94",
+        "borderDownColor": "#f7525f",
+        "wickUpColor": "#22ab94",
+        "wickDownColor": "#f7525f",
       };
       script.innerHTML = JSON.stringify(widgetConfig);
       container.current.appendChild(script);
@@ -40,13 +61,9 @@ function TradingViewWidget() {
               Stay ahead of the curve with real-time price action for one of the world's most-watched assets.
             </p>
         </div>
-        <Card className="shadow-2xl overflow-hidden">
-            <CardContent className="p-0">
-                <div className="h-[610px] w-full" ref={container}>
-                    <div className="tradingview-widget-container__widget" style={{ height: "100%", width: "100%" }}></div>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="tradingview-widget-container h-[400px] md:h-[500px]" ref={container}>
+          <div className="tradingview-widget-container__widget" style={{ height: "100%", width: "100%" }}></div>
+        </div>
       </div>
     </section>
   );
