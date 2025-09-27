@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -58,7 +59,7 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
             return;
         }
 
-        onSave(editedSignal as Signal);
+        onSave(editedSignal as Omit<Signal, 'id' | 'createdAt'> | Signal);
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

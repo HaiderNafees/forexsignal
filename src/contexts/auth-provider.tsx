@@ -20,7 +20,8 @@ import {
     deleteDoc, 
     updateDoc,
     query,
-    orderBy
+    orderBy,
+    getDoc
 } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -56,10 +57,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
           if (doc.exists()) {
-            setUser({ ...doc.data() as User, uid: doc.id });
+            const userData = { ...doc.data() as User, uid: doc.id };
+            setUser(userData);
+             if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+                const path = userData.role === 'admin' ? '/admin' : '/dashboard';
+                router.replace(path);
+            }
           } else {
-            // This case might happen if the user record in Firestore is deleted
-            // but the auth record still exists.
             setUser(null);
           }
           setLoading(false);
@@ -72,10 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    // Listen for changes to all users (for admin panel)
     const usersCollectionRef = collection(db, 'users');
     const q = query(usersCollectionRef, orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
@@ -87,7 +90,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Listen for changes to all signals
     const signalsCollectionRef = collection(db, 'signals');
     const q = query(signalsCollectionRef, orderBy('createdAt', 'desc'));
     const unsubscribeSignals = onSnapshot(q, (snapshot) => {
@@ -101,10 +103,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, pass: string) => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
-      // onAuthStateChanged will handle setting the user and redirecting
-      toast({ title: 'Login Successful', description: 'Welcome back!' });
-      // The router push is now handled by onAuthStateChanged effect
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const userDocRef = doc(db, "users", userCredential.user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          toast({ title: 'Login Successful', description: 'Welcome back!' });
+          const path = userData.role === 'admin' ? '/admin' : '/dashboard';
+          router.push(path);
+      } else {
+          throw new Error("User data not found.");
+      }
+
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -114,17 +125,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [router, toast]);
 
   const signup = useCallback(async (email: string, pass: string) => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
-
-      // Create a user document in Firestore
-      const newUser: User = {
-        uid: firebaseUser.uid,
+      
+      const newUser: Omit<User, 'uid'> = {
         email: firebaseUser.email!,
         role: 'free',
         createdAt: new Date().toISOString(),
@@ -133,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       toast({
         title: 'Account Created',
-        description: 'You can now log in.',
+        description: 'You have been successfully signed up! Redirecting to login...',
       });
       router.push('/login');
 
@@ -181,8 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
-    // Note: This only deletes the Firestore record. For a full deletion, 
-    // you would need a Firebase Function to delete the auth user.
     const userDocRef = doc(db, 'users', userId);
     try {
       await deleteDoc(userDocRef);
@@ -202,13 +209,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
     const newId = doc(collection(db, "signals")).id;
-    const newSignal: Signal = {
+    const newSignal: Omit<Signal, 'id'> & { createdAt: string } = {
         ...signalData,
-        id: newId,
         createdAt: new Date().toISOString(),
     };
     try {
-        await setDoc(doc(db, 'signals', newId), newSignal);
+        await setDoc(doc(db, 'signals', newId), { ...newSignal, id: newId });
         toast({ title: "Signal Created" });
     } catch (error: any) {
         toast({
@@ -252,16 +258,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [toast]);
 
-  useEffect(() => {
-    if (!loading && user) {
-        const path = user.role === 'admin' ? '/admin' : '/dashboard';
-        if(window.location.pathname === '/login' || window.location.pathname === '/signup' || window.location.pathname === '/'){
-             router.push(path);
-        }
-    }
-  }, [user, loading, router]);
-
-
   const contextValue = {
     user,
     users,
@@ -279,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={contextValue}>
-      {loading ? <div className="w-full h-screen flex items-center justify-center"><Skeleton className="h-20 w-20 rounded-full" /></div> : children}
+      {children}
     </AuthContext.Provider>
   );
 }
