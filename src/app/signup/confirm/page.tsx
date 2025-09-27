@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { MailCheck } from "lucide-react";
 import Link from "next/link";
 
@@ -12,12 +12,6 @@ export default function SignupConfirmPage() {
            <div className="flex justify-center mb-4">
             <MailCheck className="h-16 w-16 text-green-500" />
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
-            In a real application, you would receive an email to confirm your account before you can log in.
-          </p>
-          <Button asChild>
-            <Link href="/login">Go to Login</Link>
-          </Button>
         </CardContent>
       </Card>
     </div>
