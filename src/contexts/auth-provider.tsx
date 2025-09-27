@@ -15,7 +15,7 @@ type AuthContextType = {
   login: (email: string, pass: string) => Promise<void>;
   signup: (email: string, pass: string) => Promise<void>;
   logout: () => void;
-  updateUserRole: (userId: string, role: 'free' | 'pro') => void;
+  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
   deleteUser: (userId: string) => void;
   addSignal: (signal: Signal) => void;
   updateSignal: (signal: Signal) => void;
@@ -30,7 +30,16 @@ const getInitialState = <T,>(key: string, fallback: T): T => {
   if (typeof window === 'undefined') return fallback;
   try {
     const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
+    if (stored) {
+        const parsed = JSON.parse(stored);
+        // Ensure that for users, we don't return an empty array if there's nothing in storage
+        // and instead fall back to the initial dummy data. This prevents existing users from disappearing.
+        if (key === 'forex-edge-all-users' && Array.isArray(parsed) && parsed.length === 0) {
+            return fallback;
+        }
+        return parsed;
+    }
+    return fallback;
   } catch (error) {
     console.error(`Failed to parse ${key} from localStorage`, error);
     return fallback;
@@ -121,8 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
     };
 
-    setUser(newUser);
     setUsers(prevUsers => [...prevUsers, newUser]);
+    setUser(newUser);
     
     toast({ title: 'Signup Successful!', description: 'Welcome to ForexEdge!' });
     router.push('/dashboard');
