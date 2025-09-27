@@ -23,6 +23,12 @@
       "description": "Avatar of a person",
       "imageUrl": "https://images.unsplash.com/photo-1521119989659-a83eee488004?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzU4OTAxOTMzfDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "person portrait"
+    },
+    {
+      "id": "about-team",
+      "description": "A diverse team of professionals collaborating in a modern office environment.",
+      "imageUrl": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxkaXZlcnNlJTIwdGVhbSUyMG9mZmljZXxlbnwwfHx8fDE3NTk1NDI4MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "office team"
     }
   ]
 }
