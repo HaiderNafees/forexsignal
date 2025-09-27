@@ -5,13 +5,12 @@ import type { User, Signal } from '@/lib/types';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { getFirebase } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { 
     onAuthStateChanged, 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     signOut,
-    type Auth
 } from 'firebase/auth';
 import { 
     collection, 
@@ -25,7 +24,6 @@ import {
     getDoc,
     getDocs,
     where,
-    type Firestore
 } from 'firebase/firestore';
 import { SIGNALS } from '@/lib/placeholder-data';
 
@@ -47,44 +45,49 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Function to seed initial data
-async function seedInitialData(auth: Auth, db: Firestore) {
+async function seedInitialData() {
+  if (!auth || !db) return; // Guard against uninitialized Firebase
+
   const adminEmail = "admin@forexsignal.com";
   const adminPassword = "Admin798956!!";
   const usersRef = collection(db, "users");
+  
+  // Check if admin user exists in Firestore
   const q = query(usersRef, where("email", "==", adminEmail));
   const querySnapshot = await getDocs(q);
 
-  if (querySnapshot.empty) {
-    console.log("Admin user not found in Firestore, attempting to create...");
+  let adminExists = !querySnapshot.empty;
+
+  if (!adminExists) {
+    console.log("Admin user not found, attempting to create...");
     try {
-      // Check if user exists in Auth but not Firestore
-       const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
-       const adminUserData: Omit<User, 'uid'> = {
-         email: adminEmail,
-         role: 'admin',
-         createdAt: new Date().toISOString(),
-       };
-       await setDoc(doc(db, 'users', userCredential.user.uid), adminUserData);
-       console.log("Admin user created successfully in Auth and Firestore.");
+      const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+      const adminUserData: Omit<User, 'uid'> = {
+        email: adminEmail,
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'users', userCredential.user.uid), adminUserData);
+      console.log("Admin user created successfully.");
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        console.log('Admin email already exists in Auth. Seeding Firestore document if needed.');
-         // This case is rare but possible if Firestore doc was deleted.
-         // We can't get UID from email directly without a backend, so we will rely on the user to log in.
+        console.log('Admin email already exists in Auth. This is expected if Firestore doc was missing.');
       } else {
         console.error("Error seeding admin user:", error);
       }
     }
   }
 
+  // Seed signals if the collection is empty
   const signalsRef = collection(db, "signals");
   const signalsSnapshot = await getDocs(signalsRef);
   if (signalsSnapshot.empty) {
     console.log("Seeding signals...");
-    for (const signal of SIGNALS) {
+    const batch = SIGNALS.map(signal => {
         const signalDocRef = doc(signalsRef, signal.id);
-        await setDoc(signalDocRef, signal);
-    }
+        return setDoc(signalDocRef, signal);
+    });
+    await Promise.all(batch);
     console.log("Signals seeded.");
   }
 }
@@ -99,13 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const { auth, db } = getFirebase();
+    // auth might not be initialized on first render.
     if (!auth || !db) {
-        setLoading(false);
+        // If it's not initialized, it will be soon, and this effect will re-run.
+        setLoading(false); // Set loading to false to show the page.
         return;
-    };
+    }
 
-    seedInitialData(auth, db);
+    seedInitialData();
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setLoading(true);
@@ -115,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (doc.exists()) {
             setUser({ uid: doc.id, ...doc.data() } as User);
           } else {
-            // User authenticated but no data in Firestore
             setUser(null);
           }
           setLoading(false);
@@ -149,7 +152,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, pass: string) => {
-    const { auth, db } = getFirebase();
     if (!auth || !db) return;
     setLoading(true);
     try {
@@ -166,18 +168,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error("User data not found in database.");
       }
     } catch (error: any) {
+        console.error("Login Error:", error);
       toast({
         variant: 'destructive',
         title: 'Login Failed',
         description: error.message || 'Invalid credentials. Please try again.',
       });
-    } finally {
-      // onAuthStateChanged will handle setting user and loading state
+      setLoading(false);
     }
   }, [router, toast]);
 
   const signup = useCallback(async (email: string, pass:string) => {
-    const { auth, db } = getFirebase();
     if (!auth || !db) return;
     setLoading(true);
     try {
@@ -192,20 +193,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             title: 'Account Created',
             description: 'You have been successfully signed up! Redirecting to dashboard...',
         });
+        // The onAuthStateChanged listener will handle setting the user and loading state, and redirect.
         router.push('/dashboard');
     } catch (error: any) {
+         console.error("Signup Error:", error);
         toast({
             variant: 'destructive',
             title: 'Signup Failed',
             description: error.message,
         });
-    } finally {
-        // onAuthStateChanged will handle setting user and loading state
+        setLoading(false);
     }
   }, [router, toast]);
   
   const logout = useCallback(async () => {
-    const { auth } = getFirebase();
     if (!auth) return;
     await signOut(auth);
     setUser(null);
@@ -214,7 +215,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, toast]);
 
   const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
-    const { db } = getFirebase();
     if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
@@ -233,7 +233,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
-    const { db } = getFirebase();
     if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
@@ -253,7 +252,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
-    const { db } = getFirebase();
     if (!db) return;
     const newDocRef = doc(collection(db, "signals"));
     const newSignal: Signal = {
@@ -275,7 +273,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
-    const { db } = getFirebase();
     if (!db) return;
     const signalDocRef = doc(db, 'signals', signal.id);
     try {
@@ -291,7 +288,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
   
   const deleteSignal = useCallback(async (signalId: string) => {
-    const { db } = getFirebase();
     if (!db) return;
     const signalDocRef = doc(db, 'signals', signalId);
     try {
@@ -331,5 +327,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-    
