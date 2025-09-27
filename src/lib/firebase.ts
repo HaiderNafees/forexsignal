@@ -17,34 +17,28 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
-// This function checks if the config is valid and initializes Firebase.
-// It's designed to be run on the client side.
-function initializeFirebaseClient() {
-    if (
-        !firebaseConfig.apiKey ||
-        !firebaseConfig.authDomain ||
-        !firebaseConfig.projectId ||
-        !firebaseConfig.appId
-    ) {
-        console.error("Firebase configuration is missing. Make sure all NEXT_PUBLIC_FIREBASE_* environment variables are set.");
-        // We don't throw here to avoid crashing the server during build.
-        // The error will be visible in the browser console.
-        return;
-    }
+function getFirebase() {
+  if (
+    !firebaseConfig.apiKey ||
+    !firebaseConfig.authDomain ||
+    !firebaseConfig.projectId ||
+    !firebaseConfig.appId
+  ) {
+    console.error("Firebase configuration is missing. Make sure all NEXT_PUBLIC_FIREBASE_* environment variables are set.");
+    // We don't throw an error here to prevent server-side build failures.
+    // The app will fail gracefully on the client if config is missing.
+    return {};
+  }
   
-    if (!getApps().length) {
-        app = initializeApp(firebaseConfig);
-    } else {
-        app = getApp();
-    }
-    auth = getAuth(app);
-    db = getFirestore(app);
+  if (getApps().length) {
+    app = getApp();
+  } else {
+    app = initializeApp(firebaseConfig);
+  }
+  auth = getAuth(app);
+  db = getFirestore(app);
+
+  return { app, auth, db };
 }
 
-// Initialize on module load (client-side)
-if (typeof window !== 'undefined') {
-    initializeFirebaseClient();
-}
-
-
-export { app, auth, db, initializeFirebaseClient };
+export { getFirebase };

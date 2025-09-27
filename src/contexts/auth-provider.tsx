@@ -5,12 +5,13 @@ import type { User, Signal } from '@/lib/types';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from '@/lib/firebase';
+import { getFirebase } from '@/lib/firebase';
 import { 
     onAuthStateChanged, 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     signOut,
+    type Auth,
 } from 'firebase/auth';
 import { 
     collection, 
@@ -24,6 +25,7 @@ import {
     getDoc,
     getDocs,
     where,
+    type Firestore,
 } from 'firebase/firestore';
 import { SIGNALS } from '@/lib/placeholder-data';
 
@@ -45,40 +47,50 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Function to seed initial data
-async function seedInitialData() {
-  if (!auth || !db) return; // Guard against uninitialized Firebase
-
+async function seedInitialData(auth: Auth, db: Firestore) {
   const adminEmail = "admin@forexsignal.com";
   const adminPassword = "Admin798956!!";
   const usersRef = collection(db, "users");
   
-  // Check if admin user exists in Firestore
   const q = query(usersRef, where("email", "==", adminEmail));
   const querySnapshot = await getDocs(q);
 
   let adminExists = !querySnapshot.empty;
 
   if (!adminExists) {
-    console.log("Admin user not found, attempting to create...");
+    console.log("Admin user not found in Firestore, attempting to create...");
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
-      const adminUserData: Omit<User, 'uid'> = {
-        email: adminEmail,
-        role: 'admin',
-        createdAt: new Date().toISOString(),
-      };
-      await setDoc(doc(db, 'users', userCredential.user.uid), adminUserData);
-      console.log("Admin user created successfully.");
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        console.log('Admin email already exists in Auth. This is expected if Firestore doc was missing.');
-      } else {
-        console.error("Error seeding admin user:", error);
+      // We try to sign in first to see if the auth user exists
+      try {
+        const existingUserCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+        // If sign-in succeeds, but Firestore doc was missing, create it
+        const adminUserData: Omit<User, 'uid'> = {
+          email: adminEmail,
+          role: 'admin',
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(doc(db, 'users', existingUserCredential.user.uid), adminUserData);
+        console.log("Admin user existed in Auth, Firestore document created.");
+      } catch (error: any) {
+        // If sign-in fails because the user doesn't exist, create both Auth user and Firestore doc
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+          const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+          const adminUserData: Omit<User, 'uid'> = {
+            email: adminEmail,
+            role: 'admin',
+            createdAt: new Date().toISOString(),
+          };
+          await setDoc(doc(db, 'users', userCredential.user.uid), adminUserData);
+          console.log("Admin user created successfully in Auth and Firestore.");
+        } else {
+           throw error; // Re-throw other sign-in errors
+        }
       }
+    } catch (error: any) {
+      console.error("Error seeding admin user:", error);
     }
   }
 
-  // Seed signals if the collection is empty
   const signalsRef = collection(db, "signals");
   const signalsSnapshot = await getDocs(signalsRef);
   if (signalsSnapshot.empty) {
@@ -102,14 +114,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    // auth might not be initialized on first render.
+    const { auth, db } = getFirebase();
+
     if (!auth || !db) {
-        // If it's not initialized, it will be soon, and this effect will re-run.
-        setLoading(false); // Set loading to false to show the page.
+        setLoading(false);
         return;
     }
-
-    seedInitialData();
+    
+    seedInitialData(auth, db);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setLoading(true);
@@ -119,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (doc.exists()) {
             setUser({ uid: doc.id, ...doc.data() } as User);
           } else {
+            // This can happen if the user record is deleted from Firestore but not Auth
             setUser(null);
           }
           setLoading(false);
@@ -152,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, pass: string) => {
+    const { auth, db } = getFirebase();
     if (!auth || !db) return;
     setLoading(true);
     try {
@@ -160,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDoc = await getDoc(userDocRef);
       
       if (userDoc.exists()) {
-          const userData = userDoc.data() as User;
+          const userData = userDoc.data() as Omit<User, 'uid'>;
           toast({ title: 'Login Successful', description: 'Welcome back!' });
           const path = userData.role === 'admin' ? '/admin' : '/dashboard';
           router.push(path);
@@ -174,11 +188,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         title: 'Login Failed',
         description: error.message || 'Invalid credentials. Please try again.',
       });
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
   }, [router, toast]);
 
   const signup = useCallback(async (email: string, pass:string) => {
+    const { auth, db } = getFirebase();
     if (!auth || !db) return;
     setLoading(true);
     try {
@@ -193,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             title: 'Account Created',
             description: 'You have been successfully signed up! Redirecting to dashboard...',
         });
-        // The onAuthStateChanged listener will handle setting the user and loading state, and redirect.
         router.push('/dashboard');
     } catch (error: any) {
          console.error("Signup Error:", error);
@@ -202,11 +217,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             title: 'Signup Failed',
             description: error.message,
         });
+    } finally {
         setLoading(false);
     }
   }, [router, toast]);
   
   const logout = useCallback(async () => {
+    const { auth } = getFirebase();
     if (!auth) return;
     await signOut(auth);
     setUser(null);
@@ -215,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, toast]);
 
   const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
+    const { db } = getFirebase();
     if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
@@ -233,10 +251,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
+    const { db } = getFirebase();
     if (!db) return;
     const userDocRef = doc(db, 'users', userId);
     try {
       await deleteDoc(userDocRef);
+      // Note: This does not delete the user from Firebase Auth.
+      // In a real app, you would need a Cloud Function for that.
       toast({
         variant: 'destructive',
         title: 'User Removed',
@@ -252,10 +273,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
+    const { db } = getFirebase();
     if (!db) return;
     const newDocRef = doc(collection(db, "signals"));
-    const newSignal: Signal = {
-        id: newDocRef.id,
+    const newSignal: Omit<Signal, 'id'> = {
         ...signalData,
         createdAt: new Date().toISOString(),
     };
@@ -273,10 +294,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
+    const { db } = getFirebase();
     if (!db) return;
     const signalDocRef = doc(db, 'signals', signal.id);
+    const updateData = { ...signal };
+    delete (updateData as Partial<Signal>).id; // Do not write the id inside the document
     try {
-      await updateDoc(signalDocRef, { ...signal });
+      await updateDoc(signalDocRef, updateData);
       toast({ title: "Signal Updated" });
     } catch (error: any) {
        toast({
@@ -288,6 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
   
   const deleteSignal = useCallback(async (signalId: string) => {
+    const { db } = getFirebase();
     if (!db) return;
     const signalDocRef = doc(db, 'signals', signalId);
     try {
