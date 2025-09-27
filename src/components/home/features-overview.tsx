@@ -5,22 +5,22 @@ const features = [
   {
     icon: <Zap className="w-8 h-8 text-primary" />,
     title: "Instant Signals",
-    description: "Get real-time, actionable buy/sell signals delivered straight to your dashboard.",
+    description: "Get real-time, high-probability buy/sell signals delivered straight to your dashboard the moment a trading opportunity arises.",
   },
   {
     icon: <BarChart2 className="w-8 h-8 text-primary" />,
     title: "Pro Analytics",
-    description: "Go beyond the basics with our in-depth market analysis and trend indicators.",
+    description: "Go beyond basic charts with our in-depth market analysis, trend indicators, and volatility metrics to make data-driven decisions.",
   },
   {
     icon: <ShieldCheck className="w-8 h-8 text-primary" />,
     title: "Risk Management",
-    description: "Every signal includes clear stop-loss and take-profit targets to protect your capital.",
+    description: "Every signal includes clear stop-loss and take-profit targets, helping you protect your capital and maintain discipline.",
   },
   {
     icon: <Users className="w-8 h-8 text-primary" />,
     title: "Community Access",
-    description: "Join our Pro community to share insights and strategies with fellow traders.",
+    description: "Join our exclusive Pro community to share insights, discuss strategies, and learn from a network of profitable traders.",
   },
 ];
 
@@ -30,10 +30,10 @@ export function FeaturesOverview() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
           <h2 className="font-headline text-4xl md:text-5xl font-bold">
-            A Better Way to Trade
+            A Better Way to Trade Forex
           </h2>
           <p className="mt-3 max-w-2xl mx-auto text-lg text-muted-foreground">
-            We built ForexEdge to give you the tools and insights you need to navigate the markets with confidence.
+            We built ForexEdge to eliminate guesswork and empower you with the tools and insights needed to navigate the markets with confidence.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

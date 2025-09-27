@@ -13,12 +13,12 @@ export default function AboutPage() {
         <header className="text-center mb-12">
           <h1 className="font-headline text-4xl md:text-5xl font-bold">About ForexEdge</h1>
           <p className="text-muted-foreground mt-3 max-w-3xl mx-auto">
-            We are a team of passionate traders, developers, and analysts dedicated to empowering retail traders with the tools and insights typically reserved for institutional investors.
+            We are a team of passionate financial analysts, data scientists, and software engineers dedicated to empowering retail traders with the tools and insights typically reserved for institutional investors.
           </p>
         </header>
 
         {aboutImage && (
-             <div className="relative w-full h-96 rounded-lg overflow-hidden mb-12">
+             <div className="relative w-full h-96 rounded-lg overflow-hidden mb-12 shadow-lg">
                 <Image
                     src={aboutImage.imageUrl}
                     alt="ForexEdge Team"
@@ -34,10 +34,10 @@ export default function AboutPage() {
             <div>
                 <h2 className="font-headline text-3xl font-bold mb-4">Our Mission</h2>
                 <p className="text-muted-foreground mb-4">
-                    Our mission is simple: to level the playing field in the forex market. We believe that everyone should have access to high-quality data, professional-grade analysis, and a supportive community. By combining cutting-edge technology with seasoned trading expertise, we deliver actionable insights that help you trade smarter, not harder.
+                    Our mission is to democratize the forex market. We believe that every trader, regardless of experience or capital, deserves access to high-quality data, professional-grade analytical tools, and a supportive community. By combining cutting-edge technology with seasoned trading expertise, we deliver actionable insights that help you trade smarter, not harder.
                 </p>
                 <p className="text-muted-foreground">
-                    We are committed to transparency, accuracy, and the success of our members. Your journey in the markets is our priority, and we're here to support you every step of the way.
+                    We are obsessively committed to transparency, accuracy, and the long-term success of our members. Your journey in the markets is our priority, and we're here to provide the support and technology you need to thrive every step of the way.
                 </p>
             </div>
             <div className="grid grid-cols-1 gap-6">
@@ -46,7 +46,7 @@ export default function AboutPage() {
                         <Target className="w-8 h-8 text-primary" />
                         <div>
                             <CardTitle>Actionable Insights</CardTitle>
-                            <p className="text-sm text-muted-foreground">Providing clear, data-driven signals.</p>
+                            <p className="text-sm text-muted-foreground">Delivering clear, data-driven signals to eliminate noise.</p>
                         </div>
                     </CardHeader>
                 </Card>
@@ -55,7 +55,7 @@ export default function AboutPage() {
                         <Users className="w-8 h-8 text-primary" />
                         <div>
                             <CardTitle>Community Focused</CardTitle>
-                            <p className="text-sm text-muted-foreground">Building a network of supportive traders.</p>
+                            <p className="text-sm text-muted-foreground">Building a collaborative and supportive network of traders.</p>
                         </div>
                     </CardHeader>
                 </Card>
@@ -64,7 +64,7 @@ export default function AboutPage() {
                         <Building className="w-8 h-8 text-primary" />
                         <div>
                             <CardTitle>Constant Innovation</CardTitle>
-                            <p className="text-sm text-muted-foreground">Continuously improving our platform.</p>
+                            <p className="text-sm text-muted-foreground">Continuously improving our platform and algorithms.</p>
                         </div>
                     </CardHeader>
                 </Card>

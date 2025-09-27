@@ -26,7 +26,7 @@ export function Hero() {
             Trade Smarter with <span className="text-primary">ForexEdge</span>
           </h1>
           <p className="mt-6 mx-auto max-w-3xl text-lg text-gray-300 md:text-xl">
-            Gain your edge in the market with professional-grade signals, live data, and powerful analytics. Your journey to profitable trading starts here.
+            Unlock your trading potential with professional-grade signals, real-time market data, and powerful analytics. Your journey to consistent profitability in the forex market starts right here.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Button size="lg" asChild>

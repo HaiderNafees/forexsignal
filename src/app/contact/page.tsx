@@ -13,7 +13,7 @@ export default function ContactPage() {
         <header className="text-center mb-12">
           <h1 className="font-headline text-4xl md:text-5xl font-bold">Get In Touch</h1>
           <p className="text-muted-foreground mt-3 max-w-2xl mx-auto">
-            Have a question, comment, or feedback? We'd love to hear from you. Fill out the form below or use our contact details.
+            Have a question, feedback, or a partnership proposal? We'd love to hear from you. Our team is ready to assist you with any inquiries you may have.
           </p>
         </header>
 
@@ -21,23 +21,23 @@ export default function ContactPage() {
           <Card>
             <CardHeader>
               <CardTitle>Send us a Message</CardTitle>
-              <CardDescription>Our team will get back to you within 24 hours.</CardDescription>
+              <CardDescription>Our team typically responds within 24 business hours.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">Full Name</Label>
                         <Input id="name" placeholder="Your Name" />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email">Email Address</Label>
                         <Input id="email" type="email" placeholder="your@email.com" />
                     </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="message">Message</Label>
-                  <Textarea id="message" placeholder="How can we help you?" className="min-h-[150px]" />
+                  <Label htmlFor="message">Your Message</Label>
+                  <Textarea id="message" placeholder="Please describe your inquiry in detail..." className="min-h-[150px]" />
                 </div>
                 <Button type="submit" className="w-full">Send Message</Button>
               </form>
@@ -48,27 +48,28 @@ export default function ContactPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Contact Information</CardTitle>
+                    <CardDescription>Reach out to us directly through the channels below.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm">
+                <CardContent className="space-y-6 text-sm">
                     <div className="flex items-start gap-4">
                         <Mail className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                         <div>
-                            <h3 className="font-semibold">Email</h3>
+                            <h3 className="font-semibold">General Inquiries</h3>
                             <p className="text-muted-foreground">support@forexedge.com</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">
                         <Phone className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                         <div>
-                            <h3 className="font-semibold">Phone</h3>
+                            <h3 className="font-semibold">Support Hotline</h3>
                             <p className="text-muted-foreground">(+1) 555-123-4567</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">
                         <MapPin className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                         <div>
-                            <h3 className="font-semibold">Office</h3>
-                            <p className="text-muted-foreground">123 Trading Floor, Market St, Finance City</p>
+                            <h3 className="font-semibold">Headquarters</h3>
+                            <p className="text-muted-foreground">123 Trading Floor, Market St, Finance City, 10101</p>
                         </div>
                     </div>
                 </CardContent>

@@ -1,55 +1,48 @@
-
 import { Logo } from "@/components/logo";
 import { Twitter, Facebook, Instagram } from "lucide-react";
 import Link from "next/link";
 
 export function Footer() {
   const footerLinks = [
-    { href: "/about", label: "About Us" },
+    { href: "/about", label: "About" },
     { href: "/features", label: "Features" },
+    { href: "/signals", label: "Signals" },
     { href: "/pricing", label: "Pricing" },
     { href: "/contact", label: "Contact" },
   ];
+  const socialLinks = [
+      { href: "#", icon: <Twitter />, label: "Twitter" },
+      { href: "#", icon: <Facebook />, label: "Facebook" },
+      { href: "#", icon: <Instagram />, label: "Instagram" },
+  ];
+
   return (
     <footer className="bg-card border-t">
-      <div className="container mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="flex flex-col items-center md:items-start">
-                 <Link href="/" aria-label="ForexEdge Home">
+      <div className="container mx-auto px-4 md:px-6">
+        <div className="flex flex-col md:flex-row items-center justify-between py-6">
+            <div className="mb-4 md:mb-0">
+                <Link href="/" aria-label="ForexEdge Home">
                     <Logo />
                 </Link>
-                <p className="text-sm text-muted-foreground mt-2 text-center md:text-left">Premium Forex Signals & Analytics</p>
             </div>
-            <div className="flex flex-col items-center">
-                 <h3 className="font-headline text-lg font-semibold">Quick Links</h3>
-                 <div className="flex flex-col items-center md:items-start gap-2 mt-4 text-center">
-                    {footerLinks.map(link => (
-                        <Link key={link.href} href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
-                            {link.label}
-                        </Link>
-                    ))}
-                 </div>
-            </div>
-            <div className="flex flex-col items-center md:items-end">
-                <h3 className="font-headline text-lg font-semibold">Follow Us</h3>
-                <div className="flex space-x-6 mt-4">
-                    <Link href="#" className="text-muted-foreground hover:text-primary">
-                    <Twitter />
-                    <span className="sr-only">Twitter</span>
+            <nav className="flex flex-wrap justify-center gap-4 md:gap-6 mb-4 md:mb-0">
+                {footerLinks.map(link => (
+                    <Link key={link.href} href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                        {link.label}
                     </Link>
-                    <Link href="#" className="text-muted-foreground hover:text-primary">
-                    <Facebook />
-                    <span className="sr-only">Facebook</span>
+                ))}
+            </nav>
+            <div className="flex items-center space-x-4">
+                {socialLinks.map(link => (
+                    <Link key={link.label} href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
+                        {link.icon}
+                        <span className="sr-only">{link.label}</span>
                     </Link>
-                    <Link href="#" className="text-muted-foreground hover:text-primary">
-                    <Instagram />
-                    <span className="sr-only">Instagram</span>
-                    </Link>
-                </div>
+                ))}
             </div>
         </div>
-        <div className="mt-8 border-t border-border pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} ForexEdge. All rights reserved.</p>
+        <div className="border-t py-4 text-center text-xs text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} ForexEdge Inc. All rights reserved.</p>
         </div>
       </div>
     </footer>
