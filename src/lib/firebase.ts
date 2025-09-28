@@ -13,9 +13,8 @@ const firebaseConfig = {
     appId: "1:617111923339:web:063a079794acf64a3e028e"
 };
 
-// Initialize Firebase for server-side rendering (SSR) if it's not already initialized,
-// or get the existing app client-side.
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
