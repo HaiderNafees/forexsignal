@@ -18,10 +18,9 @@ import { LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 export function UserNav() {
-  const { user, firebaseUser } = useAuth();
+  const { user, firebaseUser, auth } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -97,3 +96,5 @@ export function UserNav() {
     </DropdownMenu>
   );
 }
+
+    

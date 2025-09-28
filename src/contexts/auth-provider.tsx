@@ -2,14 +2,72 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
 import { SIGNALS as placeholderSignals, USERS as placeholderUsers } from '@/lib/placeholder-data';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
+    authDomain: "forexsignal-371b3.firebaseapp.com",
+    projectId: "forexsignal-371b3",
+    storageBucket: "forexsignal-371b3.appspot.com",
+    messagingSenderId: "617111923339",
+    appId: "1:617111923339:web:063a079794acf64a3e028e"
+};
+
+// Initialize Firebase for SSR
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+
+async function seedInitialData() {
+    try {
+        const adminUserRef = doc(db, 'users', 'admin001');
+        const adminUserSnap = await getDoc(adminUserRef);
+
+        if (!adminUserSnap.exists()) {
+            console.log("Seeding admin user...");
+            try {
+                // This is a placeholder for creating the auth user. 
+                // In a real app, you would run a script or use the Firebase Admin SDK.
+                // We'll just create the Firestore doc.
+                const adminData = placeholderUsers.find(u => u.role === 'admin');
+                if (adminData) {
+                    await setDoc(adminUserRef, adminData);
+                }
+                 console.log("IMPORTANT: Admin user 'admin@forexsignal.com' with password 'Admin798956!!' must be created in Firebase Authentication manually if not already present.");
+
+            } catch (authError) {
+                // If the user already exists in Auth but not Firestore, that's fine.
+                if ((authError as any).code !== 'auth/email-already-in-use') {
+                    console.error("Error creating admin auth user:", authError);
+                }
+            }
+        }
+
+        const signalsCollectionRef = collection(db, 'signals');
+        const querySnapshot = await getDoc(doc(db, 'signals', 'sig001')); // Check if collection is empty
+        if (!querySnapshot.exists()) {
+            console.log("Seeding initial signals...");
+            for (const signal of placeholderSignals) {
+                const { id, ...signalData } = signal;
+                await setDoc(doc(db, 'signals', id), { ...signalData, createdAt: serverTimestamp() });
+            }
+        }
+    } catch (error) {
+        console.error("Error during initial data seed:", error);
+    }
+}
+
 
 type AuthContextType = {
   user: User | null;
@@ -23,45 +81,11 @@ type AuthContextType = {
   addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
   updateSignal: (signal: Signal) => Promise<void>;
   deleteSignal: (signalId: string) => Promise<void>;
+  auth: typeof auth;
+  db: typeof db;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-async function seedInitialData() {
-    try {
-        const adminUserRef = doc(db, 'users', 'admin001');
-        const adminUserSnap = await getDoc(adminUserRef);
-
-        if (!adminUserSnap.exists()) {
-            console.log("Seeding admin user...");
-            try {
-                // This is a placeholder for creating the auth user. 
-                // In a real app, you would run a script or use the Firebase Admin SDK.
-                // We'll just create the Firestore doc.
-                await setDoc(adminUserRef, placeholderUsers.find(u => u.role === 'admin'));
-                 console.log("IMPORTANT: Admin user 'admin@forexsignal.com' with password 'Admin798956!!' must be created in Firebase Authentication manually if not already present.");
-
-            } catch (authError) {
-                // If the user already exists in Auth but not Firestore, that's fine.
-                if ((authError as any).code !== 'auth/email-already-in-use') {
-                    console.error("Error creating admin auth user:", authError);
-                }
-            }
-        }
-
-        const signalsCollection = collection(db, 'signals');
-        const signalsSnapshot = await getDoc(collection(db, 'signals'));
-        if (signalsSnapshot.empty) {
-            console.log("Seeding initial signals...");
-            for (const signal of placeholderSignals) {
-                await addDoc(signalsCollection, { ...signal, createdAt: serverTimestamp() });
-            }
-        }
-    } catch (error) {
-        console.error("Error during initial data seed:", error);
-    }
-}
-
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -83,13 +107,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
-                const userSnap = await getDoc(userRef);
-                if (userSnap.exists()) {
-                    setUser({ uid: userSnap.id, ...userSnap.data() } as User);
-                } else {
-                    // This can happen if the Firestore user doc isn't created yet
-                    setUser(null); 
+                try {
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        setUser({ uid: userSnap.id, ...userSnap.data() } as User);
+                    } else {
+                        setUser(null); 
+                    }
+                } catch(e) {
+                    console.error("Error fetching user document", e)
                 }
+
             } else {
                 setUser(null);
             }
@@ -107,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSignals(signalsData);
         }, (error) => {
             console.error("Error fetching signals:", error);
-            toast({ variant: 'destructive', title: "Error", description: "Could not load signals." });
+            // toast({ variant: 'destructive', title: "Error", description: "Could not load signals." });
         });
         
         const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -116,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUsers(usersData);
         }, (error) => {
             console.error("Error fetching users:", error);
-            toast({ variant: 'destructive', title: "Error", description: "Could not load users." });
+            // toast({ variant: 'destructive', title: "Error", description: "Could not load users." });
         });
 
         return () => {
@@ -218,6 +246,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     addSignal,
     updateSignal,
     deleteSignal,
+    auth,
+    db,
   };
 
   return (
@@ -226,3 +256,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+    

@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const { auth } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -117,3 +118,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
