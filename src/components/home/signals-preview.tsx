@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useEffect } from 'react';
 import type { Signal } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,15 @@ import { useAuth } from "@/hooks/use-auth";
 
 function SignalCard({ signal }: { signal: Signal }) {
   const isBuy = signal.action === 'BUY';
+  const [time, setTime] = useState('');
+
+  useEffect(() => {
+    if (signal.createdAt) {
+      // Ensure this runs only on the client to prevent hydration mismatch
+      setTime(new Date(signal.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  }, [signal.createdAt]);
+
   return (
     <Card className="flex flex-col transition-all hover:shadow-lg hover:-translate-y-1">
       <CardHeader>
@@ -51,7 +61,7 @@ function SignalCard({ signal }: { signal: Signal }) {
       <CardFooter className="flex justify-between items-center text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
-          <span>{new Date(signal.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span>{time || '...'}</span>
         </div>
          <Badge variant="outline">Free Signal</Badge>
       </CardFooter>

@@ -10,7 +10,7 @@ const firebaseConfig = {
     projectId: "forexsignal-371b3",
     storageBucket: "forexsignal-371b3.appspot.com",
     messagingSenderId: "617111923339",
-    appId: "1:617111923339:web:063a079794acf64a3e028e",
+    appId: "1:617111923339:web:063a079794acf64a3e028e"
 };
 
 // Initialize Firebase for server-side rendering (SSR) if it's not already initialized,

@@ -2,15 +2,14 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, collection, getDocs, deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
-import { USERS as placeholderUsers, SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
-
+import { SIGNALS as placeholderSignals, USERS as placeholderUsers } from '@/lib/placeholder-data';
 
 type AuthContextType = {
   user: User | null;
@@ -19,8 +18,8 @@ type AuthContextType = {
   signals: Signal[];
   loading: boolean;
   logout: () => void;
-  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
-  deleteUser: (userId: string) => void;
+  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
   addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
   updateSignal: (signal: Signal) => Promise<void>;
   deleteSignal: (signalId: string) => Promise<void>;
@@ -29,24 +28,37 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function seedInitialData() {
-    // Seed Users
-    const usersCollection = collection(db, 'users');
-    const usersSnapshot = await getDocs(usersCollection);
-    if (usersSnapshot.empty) {
-        console.log("Seeding initial users...");
-        for (const user of placeholderUsers) {
-            await setDoc(doc(db, 'users', user.uid), user);
-        }
-    }
+    try {
+        const adminUserRef = doc(db, 'users', 'admin001');
+        const adminUserSnap = await getDoc(adminUserRef);
 
-    // Seed Signals
-    const signalsCollection = collection(db, 'signals');
-    const signalsSnapshot = await getDocs(signalsCollection);
-    if (signalsSnapshot.empty) {
-        console.log("Seeding initial signals...");
-        for (const signal of placeholderSignals) {
-            await setDoc(doc(db, 'signals', signal.id), signal);
+        if (!adminUserSnap.exists()) {
+            console.log("Seeding admin user...");
+            try {
+                // This is a placeholder for creating the auth user. 
+                // In a real app, you would run a script or use the Firebase Admin SDK.
+                // We'll just create the Firestore doc.
+                await setDoc(adminUserRef, placeholderUsers.find(u => u.role === 'admin'));
+                 console.log("IMPORTANT: Admin user 'admin@forexsignal.com' with password 'Admin798956!!' must be created in Firebase Authentication manually if not already present.");
+
+            } catch (authError) {
+                // If the user already exists in Auth but not Firestore, that's fine.
+                if ((authError as any).code !== 'auth/email-already-in-use') {
+                    console.error("Error creating admin auth user:", authError);
+                }
+            }
         }
+
+        const signalsCollection = collection(db, 'signals');
+        const signalsSnapshot = await getDoc(collection(db, 'signals'));
+        if (signalsSnapshot.empty) {
+            console.log("Seeding initial signals...");
+            for (const signal of placeholderSignals) {
+                await addDoc(signalsCollection, { ...signal, createdAt: serverTimestamp() });
+            }
+        }
+    } catch (error) {
+        console.error("Error during initial data seed:", error);
     }
 }
 
@@ -60,60 +72,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchUsersAndSignals = async () => {
-        try {
-            // Seed data if collections are empty
-            await seedInitialData();
+    // Seed data on initial load
+    useEffect(() => {
+        seedInitialData();
+    }, []);
 
-            // Fetch users
-            const usersCollection = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersCollection);
-            const usersList = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
-            setUsers(usersList);
+    // Listen for auth state changes
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+            setFirebaseUser(fbUser);
+            if (fbUser) {
+                const userRef = doc(db, 'users', fbUser.uid);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                    setUser({ uid: userSnap.id, ...userSnap.data() } as User);
+                } else {
+                    // This can happen if the Firestore user doc isn't created yet
+                    setUser(null); 
+                }
+            } else {
+                setUser(null);
+            }
+            setLoading(false);
+        });
 
-            // Fetch signals
-            const signalsCollection = collection(db, 'signals');
-            const signalsSnapshot = await getDocs(signalsCollection);
-            const signalsList = signalsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Signal));
-             // sort by createdAt descending
-            signalsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            setSignals(signalsList);
-        } catch (error) {
-            console.error("Error fetching initial data:", error);
-            toast({ variant: 'destructive', title: "Error", description: "Could not load platform data."})
-        }
-    };
+        return () => unsubscribe();
+    }, []);
 
-    fetchUsersAndSignals();
-  }, [toast]);
+    // Real-time listeners for signals and users
+    useEffect(() => {
+        const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+        const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
+            const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+            setSignals(signalsData);
+        }, (error) => {
+            console.error("Error fetching signals:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not load signals." });
+        });
+        
+        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+            const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+            setUsers(usersData);
+        }, (error) => {
+            console.error("Error fetching users:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not load users." });
+        });
 
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setFirebaseUser(firebaseUser);
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const docSnap = await getDoc(userRef);
-
-        if (docSnap.exists()) {
-          setUser({ uid: docSnap.id, ...docSnap.data() } as User);
-        } else {
-          // Can happen if Firestore doc is deleted but user still authenticated
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+        return () => {
+            unsubscribeSignals();
+            unsubscribeUsers();
+        };
+    }, [toast]);
 
   const logout = useCallback(async () => {
     try {
-        await auth.signOut();
+        await signOut(auth);
         setUser(null);
         setFirebaseUser(null);
         toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
@@ -128,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userRef = doc(db, 'users', userId);
     try {
         await updateDoc(userRef, { role });
-        setUsers(prev => prev.map(u => u.uid === userId ? { ...u, role } : u));
         toast({
             title: 'User Role Updated',
             description: `User role has been successfully changed to ${role}.`,
@@ -144,8 +157,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
         await deleteDoc(userRef);
         // Note: This doesn't delete the Firebase Auth user, only the Firestore record.
-        // For a full implementation, you'd need a Cloud Function to delete the auth user.
-        setUsers(prev => prev.filter(u => u.uid !== userId));
         toast({
           variant: 'destructive',
           title: 'User Removed',
@@ -159,14 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
     try {
-        const newSignal = {
-            ...signalData,
-            createdAt: new Date().toISOString(),
-        };
         const signalsCollection = collection(db, 'signals');
-        // Firestore will generate an ID
-        const docRef = await setDoc(doc(signalsCollection, `sig_${Date.now()}`), newSignal);
-        setSignals(prev => [{...newSignal, id: docRef.id}, ...prev]);
+        await addDoc(signalsCollection, { ...signalData, createdAt: serverTimestamp() });
         toast({ title: "Signal Created" });
     } catch (error) {
         console.error("Failed to add signal:", error);
@@ -176,10 +181,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
-    const signalRef = doc(db, 'signals', signal.id);
+    const { id, ...signalData } = signal;
+    const signalRef = doc(db, 'signals', id);
     try {
-        await updateDoc(signalRef, { ...signal });
-        setSignals(prev => prev.map(s => s.id === signal.id ? signal : s));
+        await updateDoc(signalRef, signalData);
         toast({ title: "Signal Updated" });
     } catch (error) {
         console.error("Failed to update signal:", error);
@@ -191,7 +196,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signalRef = doc(db, 'signals', signalId);
     try {
         await deleteDoc(signalRef);
-        setSignals(prev => prev.filter(s => s.id !== signalId));
         toast({
             variant: "destructive",
             title: "Signal Deleted",
