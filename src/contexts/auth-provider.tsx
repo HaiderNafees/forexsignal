@@ -4,10 +4,10 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { auth, db } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, getDocs, deleteDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
 import { USERS as placeholderUsers, SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
 
@@ -18,8 +18,6 @@ type AuthContextType = {
   users: User[];
   signals: Signal[];
   loading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  signup: (email: string, pass: string) => Promise<void>;
   logout: () => void;
   updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
   deleteUser: (userId: string) => void;
@@ -30,163 +28,179 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function seedInitialData() {
+    // Seed Users
+    const usersCollection = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersCollection);
+    if (usersSnapshot.empty) {
+        console.log("Seeding initial users...");
+        for (const user of placeholderUsers) {
+            await setDoc(doc(db, 'users', user.uid), user);
+        }
+    }
+
+    // Seed Signals
+    const signalsCollection = collection(db, 'signals');
+    const signalsSnapshot = await getDocs(signalsCollection);
+    if (signalsSnapshot.empty) {
+        console.log("Seeding initial signals...");
+        for (const signal of placeholderSignals) {
+            await setDoc(doc(db, 'signals', signal.id), signal);
+        }
+    }
+}
+
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [users, setUsers] = useState<User[]>(placeholderUsers);
-  const [signals, setSignals] = useState<Signal[]>(placeholderSignals);
+  const [users, setUsers] = useState<User[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchUsersAndSignals = async () => {
+        try {
+            // Seed data if collections are empty
+            await seedInitialData();
+
+            // Fetch users
+            const usersCollection = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersCollection);
+            const usersList = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+            setUsers(usersList);
+
+            // Fetch signals
+            const signalsCollection = collection(db, 'signals');
+            const signalsSnapshot = await getDocs(signalsCollection);
+            const signalsList = signalsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Signal));
+             // sort by createdAt descending
+            signalsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setSignals(signalsList);
+        } catch (error) {
+            console.error("Error fetching initial data:", error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not load platform data."})
+        }
+    };
+
+    fetchUsersAndSignals();
+  }, [toast]);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setFirebaseUser(firebaseUser);
       if (firebaseUser) {
-        // User is signed in, see docs for a list of available properties
-        // https://firebase.google.com/docs/reference/js/firebase.User
         const userRef = doc(db, 'users', firebaseUser.uid);
         const docSnap = await getDoc(userRef);
 
         if (docSnap.exists()) {
-          setUser(docSnap.data() as User);
+          setUser({ uid: docSnap.id, ...docSnap.data() } as User);
         } else {
-          // This can happen if the user record in Firestore is deleted
-          // but they are still authenticated.
+          // Can happen if Firestore doc is deleted but user still authenticated
           setUser(null);
         }
       } else {
-        // User is signed out
         setUser(null);
       }
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
-  const login = useCallback(async (email: string, pass: string) => {
-    setLoading(true);
-    // Simulate network delay
-    await new Promise(res => setTimeout(res, 500));
-
-    // Special admin credentials
-    if (email === "admin@forexsignal.com" && pass === "Admin798956!!") {
-      const adminUser = users.find(u => u.email === email);
-      if (adminUser) {
-        setUser(adminUser);
-        toast({ title: 'Login Successful', description: 'Welcome back, Admin!' });
-        router.push('/admin');
-        setLoading(false);
-        return;
-      }
-    }
-
-    const foundUser = users.find(u => u.email === email);
-
-    if (foundUser) {
-      setUser(foundUser);
-      toast({ title: 'Login Successful', description: 'Welcome back!' });
-      const path = foundUser.role === 'admin' ? '/admin' : '/dashboard';
-      router.push(path);
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description: 'Invalid credentials. Please try again.',
-      });
-    }
-    setLoading(false);
-  }, [router, toast, users]);
-
-  const signup = useCallback(async (email: string, pass: string) => {
-    setLoading(true);
-    await new Promise(res => setTimeout(res, 500));
-
-    if (users.some(u => u.email === email)) {
-        toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: 'An account with this email already exists.',
-        });
-        setLoading(false);
-        return;
-    }
-
-    const newUser: User = {
-        uid: `user_${Date.now()}`,
-        email,
-        role: 'free',
-        createdAt: new Date().toISOString(),
-    };
-    
-    setUsers(prevUsers => [...prevUsers, newUser]);
-    setUser(newUser);
-
-    toast({
-        title: 'Account Created',
-        description: 'You have been successfully signed up! Redirecting to dashboard...',
-    });
-    router.push('/dashboard');
-    setLoading(false);
-  }, [router, toast, users]);
-  
   const logout = useCallback(async () => {
-    setUser(null);
-    setFirebaseUser(null);
-    toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
-    router.push('/login');
+    try {
+        await auth.signOut();
+        setUser(null);
+        setFirebaseUser(null);
+        toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+        router.push('/login');
+    } catch (error) {
+        console.error("Logout failed:", error);
+        toast({ variant: 'destructive', title: 'Logout Failed', description: 'An error occurred during logout.' });
+    }
   }, [router, toast]);
 
   const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
-    const updatedUsers = users.map(u => u.uid === userId ? { ...u, role } : u);
-    setUsers(updatedUsers);
-    toast({
-        title: 'User Role Updated',
-        description: `User role has been successfully changed to ${role}.`,
-    });
-  }, [toast, users]);
+    const userRef = doc(db, 'users', userId);
+    try {
+        await updateDoc(userRef, { role });
+        setUsers(prev => prev.map(u => u.uid === userId ? { ...u, role } : u));
+        toast({
+            title: 'User Role Updated',
+            description: `User role has been successfully changed to ${role}.`,
+        });
+    } catch (error) {
+        console.error("Failed to update role:", error);
+        toast({ variant: 'destructive', title: "Update Failed" });
+    }
+  }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
-    const updatedUsers = users.filter(u => u.uid !== userId);
-    setUsers(updatedUsers);
-    toast({
-      variant: 'destructive',
-      title: 'User Removed',
-      description: 'The user has been successfully removed.',
-    });
-  }, [toast, users]);
+    const userRef = doc(db, 'users', userId);
+    try {
+        await deleteDoc(userRef);
+        // Note: This doesn't delete the Firebase Auth user, only the Firestore record.
+        // For a full implementation, you'd need a Cloud Function to delete the auth user.
+        setUsers(prev => prev.filter(u => u.uid !== userId));
+        toast({
+          variant: 'destructive',
+          title: 'User Removed',
+          description: 'The user record has been successfully removed.',
+        });
+    } catch (error) {
+        console.error("Failed to delete user:", error);
+        toast({ variant: 'destructive', title: "Delete Failed" });
+    }
+  }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
-    const newSignal: Signal = {
-        ...signalData,
-        id: `sig_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-    };
-    const updatedSignals = [newSignal, ...signals];
-    setSignals(updatedSignals);
-    toast({ title: "Signal Created" });
-  }, [toast, signals]);
+    try {
+        const newSignal = {
+            ...signalData,
+            createdAt: new Date().toISOString(),
+        };
+        const signalsCollection = collection(db, 'signals');
+        // Firestore will generate an ID
+        const docRef = await setDoc(doc(signalsCollection, `sig_${Date.now()}`), newSignal);
+        setSignals(prev => [{...newSignal, id: docRef.id}, ...prev]);
+        toast({ title: "Signal Created" });
+    } catch (error) {
+        console.error("Failed to add signal:", error);
+        toast({ variant: 'destructive', title: "Creation Failed" });
+    }
+  }, [toast]);
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
-    const updatedSignals = signals.map(s => s.id === signal.id ? signal : s);
-    setSignals(updatedSignals);
-    toast({ title: "Signal Updated" });
-  }, [toast, signals]);
+    const signalRef = doc(db, 'signals', signal.id);
+    try {
+        await updateDoc(signalRef, { ...signal });
+        setSignals(prev => prev.map(s => s.id === signal.id ? signal : s));
+        toast({ title: "Signal Updated" });
+    } catch (error) {
+        console.error("Failed to update signal:", error);
+        toast({ variant: 'destructive', title: "Update Failed" });
+    }
+  }, [toast]);
   
   const deleteSignal = useCallback(async (signalId: string) => {
-    const updatedSignals = signals.filter(s => s.id !== signalId);
-    setSignals(updatedSignals);
-    toast({
-        variant: "destructive",
-        title: "Signal Deleted",
-        description: "The signal has been removed successfully."
-    })
-  }, [toast, signals]);
+    const signalRef = doc(db, 'signals', signalId);
+    try {
+        await deleteDoc(signalRef);
+        setSignals(prev => prev.filter(s => s.id !== signalId));
+        toast({
+            variant: "destructive",
+            title: "Signal Deleted",
+        });
+    } catch (error) {
+        console.error("Failed to delete signal:", error);
+        toast({ variant: 'destructive', title: "Delete Failed" });
+    }
+  }, [toast]);
 
   const contextValue = {
     user,
@@ -194,8 +208,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     users,
     signals,
     loading,
-    login,
-    signup,
     logout,
     updateUserRole,
     deleteUser,
