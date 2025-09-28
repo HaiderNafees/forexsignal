@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -16,12 +17,23 @@ import { Badge } from "@/components/ui/badge";
 import { LayoutDashboard, LogOut, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export function UserNav() {
-  const { user, logout } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const router = useRouter();
 
-  if (!user) {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
+  };
+
+  if (!user || !firebaseUser) {
     return null;
   }
 
@@ -50,8 +62,8 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.email} />
-            <AvatarFallback>{getAvatarFallback(user.email)}</AvatarFallback>
+            <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.email || ""} />
+            <AvatarFallback>{getAvatarFallback(user.email || "")}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -77,7 +89,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="cursor-pointer">
+        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>

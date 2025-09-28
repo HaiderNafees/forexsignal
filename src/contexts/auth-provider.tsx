@@ -1,14 +1,20 @@
 
 "use client";
 
-import type { User, Signal } from '@/lib/types';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { auth, db } from '@/lib/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import type { User, Signal } from '@/lib/types';
 import { USERS as placeholderUsers, SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
+
 
 type AuthContextType = {
   user: User | null;
+  firebaseUser: FirebaseUser | null;
   users: User[];
   signals: Signal[];
   loading: boolean;
@@ -24,32 +30,42 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Initialize with placeholder data
-let localUsers: User[] = [...placeholderUsers];
-let localSignals: Signal[] = [...placeholderSignals];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(localUsers);
-  const [signals, setSignals] = useState<Signal[]>(localSignals);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [users, setUsers] = useState<User[]>(placeholderUsers);
+  const [signals, setSignals] = useState<Signal[]>(placeholderSignals);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check for user in local storage
-    try {
-        const storedUser = localStorage.getItem('forex-user');
-        if (storedUser) {
-            const parsedUser = JSON.parse(storedUser) as User;
-            setUser(parsedUser);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setFirebaseUser(firebaseUser);
+      if (firebaseUser) {
+        // User is signed in, see docs for a list of available properties
+        // https://firebase.google.com/docs/reference/js/firebase.User
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const docSnap = await getDoc(userRef);
+
+        if (docSnap.exists()) {
+          setUser(docSnap.data() as User);
+        } else {
+          // This can happen if the user record in Firestore is deleted
+          // but they are still authenticated.
+          setUser(null);
         }
-    } catch(error) {
-        console.error("Failed to parse user from local storage", error);
-        localStorage.removeItem('forex-user');
-    } finally {
-        setLoading(false);
-    }
+      } else {
+        // User is signed out
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
   const login = useCallback(async (email: string, pass: string) => {
@@ -62,7 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const adminUser = users.find(u => u.email === email);
       if (adminUser) {
         setUser(adminUser);
-        localStorage.setItem('forex-user', JSON.stringify(adminUser));
         toast({ title: 'Login Successful', description: 'Welcome back, Admin!' });
         router.push('/admin');
         setLoading(false);
@@ -74,7 +89,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (foundUser) {
       setUser(foundUser);
-      localStorage.setItem('forex-user', JSON.stringify(foundUser));
       toast({ title: 'Login Successful', description: 'Welcome back!' });
       const path = foundUser.role === 'admin' ? '/admin' : '/dashboard';
       router.push(path);
@@ -109,10 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
     };
     
-    localUsers = [...localUsers, newUser];
-    setUsers(localUsers);
+    setUsers(prevUsers => [...prevUsers, newUser]);
     setUser(newUser);
-    localStorage.setItem('forex-user', JSON.stringify(newUser));
 
     toast({
         title: 'Account Created',
@@ -124,14 +136,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const logout = useCallback(async () => {
     setUser(null);
-    localStorage.removeItem('forex-user');
+    setFirebaseUser(null);
     toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
     router.push('/login');
   }, [router, toast]);
 
   const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
     const updatedUsers = users.map(u => u.uid === userId ? { ...u, role } : u);
-    localUsers = updatedUsers;
     setUsers(updatedUsers);
     toast({
         title: 'User Role Updated',
@@ -141,7 +152,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const deleteUser = useCallback(async (userId: string) => {
     const updatedUsers = users.filter(u => u.uid !== userId);
-    localUsers = updatedUsers;
     setUsers(updatedUsers);
     toast({
       variant: 'destructive',
@@ -157,7 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
     };
     const updatedSignals = [newSignal, ...signals];
-    localSignals = updatedSignals;
     setSignals(updatedSignals);
     toast({ title: "Signal Created" });
   }, [toast, signals]);
@@ -165,14 +174,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateSignal = useCallback(async (signal: Signal) => {
     const updatedSignals = signals.map(s => s.id === signal.id ? signal : s);
-    localSignals = updatedSignals;
     setSignals(updatedSignals);
     toast({ title: "Signal Updated" });
   }, [toast, signals]);
   
   const deleteSignal = useCallback(async (signalId: string) => {
     const updatedSignals = signals.filter(s => s.id !== signalId);
-    localSignals = updatedSignals;
     setSignals(updatedSignals);
     toast({
         variant: "destructive",
@@ -183,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue = {
     user,
+    firebaseUser,
     users,
     signals,
     loading,

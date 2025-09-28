@@ -1,11 +1,15 @@
+
 "use client";
 
 import { useContext } from 'react';
 import { AuthContext } from '@/contexts/auth-provider';
 import type { User, Signal } from '@/lib/types';
+import type { User as FirebaseUser } from 'firebase/auth';
+
 
 type AuthContextType = {
   user: User | null;
+  firebaseUser: FirebaseUser | null;
   users: User[];
   signals: Signal[];
   loading: boolean;
