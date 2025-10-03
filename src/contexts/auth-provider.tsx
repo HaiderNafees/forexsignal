@@ -78,8 +78,8 @@ async function seedInitialData() {
         console.log("Seeding check complete.");
 
     } catch (error: any) {
-        if((error as any).code === 'auth/configuration-not-found') {
-            console.warn("Auth configuration not found. This might be expected in some environments. Skipping admin creation.");
+        if((error as any).code === 'auth/configuration-not-found' || (error as any).code === 'unavailable') {
+            console.warn("Auth configuration not found or service unavailable. This might be expected in some environments. Skipping admin creation.");
         } else {
             console.error("Error during initial data seed:", error);
         }
@@ -137,7 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             operation: 'get',
                         });
                         errorEmitter.emit('permission-error', permissionError);
-                    } else {
+                    } else if (error.code === 'unavailable') {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Connection Error',
+                            description: 'Could not connect to the database. Please check your internet connection or Firestore rules.',
+                        });
+                    }
+                     else {
                         console.error("User doc listener error:", error);
                     }
                     setUser(null);
