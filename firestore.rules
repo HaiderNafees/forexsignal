@@ -1,25 +1,84 @@
+/**
+ * @fileoverview Firestore Security Rules for the trading signals application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes user data protection and enforces role-based access control.
+ * User data is secured using an ownership model, while signals are publicly readable but only
+ * modifiable by authenticated users.  Upgrade requests can be created by any signed-in user.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles, accessible only to the user themselves.
+ * - /signals/{signalId}: Stores trading signals, publicly readable, but create, update, and delete operations are restricted.
+ * - /upgrade_requests/{requestId}: Stores user upgrade requests. Create requests are allowed for signed-in users.
+ *
+ * Key Security Decisions:
+ * - Users can only read and write their own user documents.
+ * - Signals are publicly readable. Create, update, and delete operations on signals are restricted to signed-in users.
+ * - Any signed-in user can create an upgrade request.
+ *
+ * Denormalization for Authorization:
+ *  N/A - No denormalization is explicitly needed.
+ *
+ * Structural Segregation:
+ *  N/A - No data is separated into private and public collections.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check for admin role
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Users can only read/write to their own document.
-    // Admins can read/write any user document.
+    /**
+     * @description Secures user profiles, allowing only the user to read and write their own data.
+     * @path /users/{userId}
+     * @allow (get, update, delete) User with uid 'user123' can access /users/user123.
+     * @allow (create) User with uid 'user123' can create /users/user123 if request.auth.uid == 'user123'.
+     * @deny (get, update, delete) User with uid 'user456' cannot access /users/user123.
+     * @deny (create) User with uid 'user456' cannot create /users/user123.
+     * @principle Enforces document ownership for all operations on user documents.
+     */
     match /users/{userId} {
-      allow read, update, delete: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid != null;
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && resource.data.uid == userId;
+      allow delete: if isOwner(userId) && resource.data.uid == userId;
     }
 
-    // All authenticated users can read signals.
-    // Only admins can create, update, or delete signals.
+    /**
+     * @description Secures trading signals, allowing public read access but restricting write access.
+     * @path /signals/{signalId}
+     * @allow (get, list) Any user can read signals.
+     * @allow (create) Authenticated user can create signals.
+     * @deny (update, delete) Only the signal creator can update or delete signals.  The 'Signal' entity is missing an 'ownerId' or 'authorId' field.
+     * @principle Allows public read access while restricting write access to authenticated users.
+     */
     match /signals/{signalId} {
-      allow read: if request.auth.uid != null;
-      allow create, update, delete: if isAdmin();
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn(); // TODO: Validate signal data if needed.
+      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+    
+     /**
+      * @description Allows any authenticated user to create an upgrade request.
+      * @path /upgrade_requests/{requestId}
+      * @allow (create) User with uid 'user123' can create an upgrade request.
+      * @deny (get, list, update, delete) No one can get, list, update, or delete upgrade requests.
+      * @principle Allows only create operations for upgrade requests, restricted to authenticated users.
+      */
+    match /upgrade_requests/{requestId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list, update, delete: if false;
+      allow create: if isSignedIn();
     }
   }
 }
