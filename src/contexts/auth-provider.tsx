@@ -11,11 +11,12 @@ import type { User, Signal } from '@/lib/types';
 import { SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, type Firestore, CACHE_SIZE_UNLIMITED, memoryLocalCache } from "firebase/firestore";
+import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
-// Your web app's Firebase configuration - A stable, pre-configured project
+// Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
     authDomain: "forexsignal-371b3.firebaseapp.com",
@@ -29,11 +30,15 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let functions: Functions;
 
 if (typeof window !== 'undefined') {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app);
+  db = getFirestore(app, {
+      localCache: memoryLocalCache({ cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
+  });
+  functions = getFunctions(app);
 }
 
 async function seedInitialData() {
@@ -119,7 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
-                         // This case might happen if the user doc creation fails after signup.
                          setUser(null);
                     }
                 } catch(e: any) {
@@ -131,8 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         errorEmitter.emit('permission-error', permissionError);
                     } else if (e.code === 'unavailable') {
                         toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection and Firestore rules.' });
-                    }
-                     else {
+                    } else {
                         console.error("Error fetching user document", e);
                     }
                     setUser(null);
@@ -146,7 +149,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribe();
     }, [toast]);
 
-    // Real-time listeners for signals and users (conditionally)
     useEffect(() => {
         if (!user || !db) {
             setSignals([]);
@@ -154,7 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
         };
         
-        // Only authenticated users should attempt to read signals
         const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
         const unsubscribeSignals = onSnapshot(signalsQuery, 
             (snapshot) => {
@@ -175,7 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         );
 
-        // Only admin users can read the full user list
         let unsubscribeUsers = () => {};
         if (user.role === 'admin') {
             const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -219,28 +219,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [router, toast]);
 
-  const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
-    const userRef = doc(db, 'users', userId);
-    const roleData = { role };
-    updateDoc(userRef, roleData)
-        .then(() => {
-            toast({
-                title: 'User Role Updated',
-                description: `User role has been successfully changed to ${role}.`,
-            });
-        })
-        .catch(async (serverError) => {
-            if(serverError.code === 'permission-denied'){
-                 const permissionError = new FirestorePermissionError({
-                    path: userRef.path,
-                    operation: 'update',
-                    requestResourceData: roleData,
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            } else {
-                toast({ variant: 'destructive', title: "Update Failed", description: 'Could not update user role.' });
-            }
+ const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
+    try {
+        const setUserRole = httpsCallable(functions, 'setUserRole');
+        await setUserRole({ uid: userId, role: role });
+        toast({
+            title: 'User Role Updated',
+            description: `User role has been successfully changed to ${role}.`,
         });
+    } catch (error: any) {
+        console.error("Error updating user role:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error.message || 'Could not update user role via function.',
+        });
+    }
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {

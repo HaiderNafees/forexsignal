@@ -2,43 +2,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Function to get the role of the requesting user
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+
+    // Helper functions
+    function isAuth() {
+      return request.auth != null;
     }
 
-    // Function to check if the requesting user is an admin
+    function isUser(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
     function isAdmin() {
-      return request.auth != null && getUserRole(request.auth.uid) == 'admin';
+      return isAuth() && request.auth.token.role == 'admin';
     }
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // ANY authenticated user can create their own user document upon signup
-      allow create: if request.auth != null;
-
-      // A user can read their own document. Admins can read any document.
-      allow get: if request.auth.uid == userId || isAdmin();
-      
-      // Admins can list all users. Regular users cannot.
-      allow list: if isAdmin();
-
-      // A user can update their own document. Admins can update any user's role.
-      allow update: if request.auth.uid == userId || 
-                       (isAdmin() && 'role' in request.resource.data);
-                       
-      // Only admins can delete users (but not themselves).
+      // Any authenticated user can create their own user document.
+      allow create: if isAuth();
+      // A user can read their own document. Admins can read any user document.
+      allow get: if isUser(userId) || isAdmin();
+      // A user can only update their own document. Admins cannot directly update user docs (must use cloud function).
+      allow update: if isUser(userId);
+      // Only admins can delete user documents (except their own).
       allow delete: if isAdmin() && request.auth.uid != userId;
+      // Admins can list all users.
+      allow list: if isAdmin();
     }
 
     // Rules for the 'signals' collection
     match /signals/{signalId} {
-      // Any authenticated user can read signals.
-      allow get, list: if request.auth != null;
-      
+      // Any authenticated user can view signals.
+      allow read: if isAuth();
       // Only admins can create, update, or delete signals.
-      allow create, update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }
