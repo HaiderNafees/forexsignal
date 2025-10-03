@@ -30,14 +30,13 @@ export default function LoginPage() {
   const { auth, user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // This effect runs when the `user` object is available and not in a loading state.
     if (!authLoading && user) {
         toast({
             title: "Login Successful",
             description: "Redirecting to your dashboard...",
         });
         const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
-        router.push(redirectPath);
+        router.replace(redirectPath);
     }
   }, [user, authLoading, router, toast]);
 
@@ -52,12 +51,9 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      // Sign in the user with email and password.
-      // The useEffect hook will handle the redirection.
       await signInWithEmailAndPassword(auth, values.email, values.password);
-
+      // The useEffect hook will handle the redirection.
     } catch (error: any) {
-      // Display an error message if login fails
       toast({
         variant: "destructive",
         title: "Login Failed",
@@ -66,6 +62,13 @@ export default function LoginPage() {
     } finally {
         setLoading(false);
     }
+  }
+
+  // If we are not loading and the user is already logged in, redirect them.
+  // This handles cases where the user navigates back to the login page.
+  if (!authLoading && user) {
+    // You can show a loading indicator here, or just null while redirecting.
+    return null;
   }
 
   return (
@@ -107,8 +110,8 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing In..." : "Sign In"}
+              <Button type="submit" className="w-full" disabled={loading || authLoading}>
+                {loading || authLoading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
           </Form>
