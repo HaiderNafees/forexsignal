@@ -3,29 +3,13 @@
 
 import React from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdminTabs } from '@/components/admin/admin-tabs';
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
-  const router = useRouter();
-
-  const isAdmin = user?.role === 'admin' && user?.email === 'forexsignaldmn@gmail.com';
-
-  React.useEffect(() => {
-    // Wait until the authentication check is complete.
-    if (!loading) {
-      // If there's no user OR the user is not an admin after loading, redirect away.
-      if (!user || !isAdmin) {
-        router.replace('/login');
-      }
-    }
-  }, [user, loading, router, isAdmin]);
-
-  // Show a loading skeleton while auth state is resolving OR if the user is not an admin yet.
-  // This prevents a flash of the admin page before a potential redirect.
-  if (loading || !isAdmin || !user) {
+  
+  if (loading || !user) {
     return (
       <div className="container mx-auto py-10 px-4 pt-24">
         <div className="space-y-4">
@@ -55,3 +39,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

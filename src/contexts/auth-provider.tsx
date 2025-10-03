@@ -4,7 +4,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
@@ -104,6 +104,9 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const protectedRoutes = ['/dashboard', '/admin'];
+const publicRoutes = ['/login', '/signup'];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -111,6 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
     useEffect(() => {
@@ -122,42 +126,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
-                onSnapshot(userRef, (userSnap) => {
-                    if (userSnap.exists()) {
-                        const userData = { uid: userSnap.id, ...userSnap.data() } as User;
-                        setUser(userData);
-                    } else {
-                        setUser(null);
-                    }
-                    setLoading(false);
-                }, async (error) => {
-                    if (error.code === 'permission-denied') {
-                        const permissionError = new FirestorePermissionError({
-                            path: userRef.path,
-                            operation: 'get',
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                    } else if (error.code === 'unavailable') {
-                        toast({
-                            variant: 'destructive',
-                            title: 'Connection Error',
-                            description: 'Could not connect to the database. Please check your internet connection or Firestore rules.',
-                        });
-                    }
-                     else {
-                        console.error("User doc listener error:", error);
-                    }
-                    setUser(null);
-                    setLoading(false);
+                const userSnap = await getDoc(userRef).catch(err => {
+                    console.error("Failed to fetch user document:", err);
+                    return null;
                 });
+                if (userSnap && userSnap.exists()) {
+                    const userData = { uid: userSnap.id, ...userSnap.data() } as User;
+                    setUser(userData);
+                } else {
+                    setUser(null);
+                }
             } else {
                 setUser(null);
-                setLoading(false);
             }
+            setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [toast]);
+    }, []);
+
+    useEffect(() => {
+        if (loading) return;
+
+        const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+        const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+
+        if (!user && isProtectedRoute) {
+            router.replace('/login');
+        }
+
+        if (user) {
+            if (user.role === 'admin' && pathname !== '/admin') {
+                 if(!pathname.startsWith('/admin')){
+                    router.replace('/admin');
+                 }
+            } else if (user.role !== 'admin' && pathname.startsWith('/admin')) {
+                router.replace('/dashboard');
+            } else if (isPublicRoute) {
+                 router.replace('/dashboard');
+            }
+        }
+    }, [user, loading, pathname, router]);
 
     useEffect(() => {
         if (!user || !db) {
@@ -358,3 +367,5 @@ addSignal,
     </AuthContext.Provider>
   );
 }
+
+    

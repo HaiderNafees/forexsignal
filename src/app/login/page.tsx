@@ -15,9 +15,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc } from "firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -27,16 +27,7 @@ const formSchema = z.object({
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
-  const { auth, user: authUser, loading: authLoading } = useAuth();
-
-  useEffect(() => {
-    // If the auth state is resolved and we have a user, redirect them away from the login page.
-    if (!authLoading && authUser) {
-      const redirectPath = authUser.role === 'admin' ? '/admin' : '/dashboard';
-      router.replace(redirectPath);
-    }
-  }, [authUser, authLoading, router]);
+  const { auth, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -55,8 +46,7 @@ export default function LoginPage() {
         title: "Login Successful",
         description: "Redirecting to your dashboard...",
       });
-
-      // The useEffect will now handle redirection based on the updated authUser state.
+      // The AuthProvider will now handle redirection automatically.
 
     } catch (error: any) {
       toast({
@@ -69,13 +59,19 @@ export default function LoginPage() {
     }
   }
 
-  // Show a loading indicator if the initial auth check is in progress
-  // OR if we already have a user and are about to redirect.
-  // This prevents a flash of the login form before redirection.
-  if (authLoading || authUser) {
+  // Show a loading skeleton while auth state is resolving
+  if (authLoading) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <p>Loading...</p>
+            <div className="w-full max-w-md space-y-4">
+              <Skeleton className="h-10 w-2/4 mx-auto" />
+              <Skeleton className="h-8 w-3/4 mx-auto" />
+              <div className="space-y-6 pt-6">
+                 <Skeleton className="h-12 w-full" />
+                 <Skeleton className="h-12 w-full" />
+                 <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
         </div>
     );
   }
@@ -135,3 +131,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
