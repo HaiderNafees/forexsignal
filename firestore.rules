@@ -2,31 +2,21 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Function to check if a user is an admin
+
+    // Helper function to check for admin role
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Rules for the 'users' collection
+    // Users can only read/write their own data. Admins can read/write any user document.
     match /users/{userId} {
-      // Allow users to create their own profile upon signup
-      allow create: if request.auth.uid != null;
-      
-      // Allow users to read or update their own data
-      // Allow admins to read or update ANY user's data
-      allow read, update: if request.auth.uid == userId || isAdmin();
-      
-      // Only admins can delete user documents
-      allow delete: if isAdmin();
+      allow read, update, delete: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth != null;
     }
 
-    // Rules for the 'signals' collection
+    // Signals can be read by any authenticated user, but only managed by admins.
     match /signals/{signalId} {
-      // Any authenticated user can read signals
-      allow read: if request.auth.uid != null;
-      
-      // Only admins can create, update, or delete signals
+      allow read: if request.auth != null;
       allow create, update, delete: if isAdmin();
     }
   }

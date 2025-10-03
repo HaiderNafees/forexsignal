@@ -65,7 +65,11 @@ async function seedInitialData() {
             console.log("Seeding initial signals...");
             const signalPromises = placeholderSignals.map(signal => {
                 const { id, ...signalData } = signal;
-                return setDoc(doc(db, 'signals', id), { ...signalData, createdAt: serverTimestamp() });
+                const signalRef = doc(db, 'signals', id);
+                return setDoc(signalRef, { ...signalData, createdAt: serverTimestamp() }).catch(serverError => {
+                    // Non-blocking, best-effort seeding.
+                    console.warn(`Could not seed signal ${id}:`, serverError.message);
+                });
             });
             await Promise.all(signalPromises);
         }
@@ -118,34 +122,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
-                try {
-                    const userSnap = await getDoc(userRef);
+                onSnapshot(userRef, (userSnap) => {
                     if (userSnap.exists()) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
-                         // This case can happen if the user record is deleted from Firestore
-                         // but they are still authenticated. We should log them out.
-                         await signOut(auth);
-                         setUser(null);
+                        setUser(null);
                     }
-                } catch(e: any) {
-                     if (e.code === 'permission-denied') {
+                    setLoading(false);
+                }, async (error) => {
+                    if (error.code === 'permission-denied') {
                         const permissionError = new FirestorePermissionError({
                             path: userRef.path,
                             operation: 'get',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                     } else {
-                        console.error("Error fetching user document", e);
-                         toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection and Firestore rules.' });
+                        console.error("User doc listener error:", error);
                     }
                     setUser(null);
-                }
+                    setLoading(false);
+                });
             } else {
                 setUser(null);
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return () => unsubscribe();
@@ -169,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const permissionError = new FirestorePermissionError({
                         path: collection(db, 'signals').path,
                         operation: 'list',
-                    } satisfies SecurityRuleContext);
+                    });
                     errorEmitter.emit('permission-error', permissionError);
                 } else {
                    console.error("Signal listener error:", error);
@@ -191,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const permissionError = new FirestorePermissionError({
                             path: collection(db, 'users').path,
                             operation: 'list',
-                        } satisfies SecurityRuleContext);
+                        });
                         errorEmitter.emit('permission-error', permissionError);
                     } else {
                         console.error("User listener error:", error);
