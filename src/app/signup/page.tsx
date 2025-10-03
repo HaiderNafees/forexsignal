@@ -65,42 +65,37 @@ export default function SignupPage() {
         createdAt: serverTimestamp(),
       };
       
-      setDoc(userDocRef, userProfile)
-        .catch(async (serverError) => {
-            if (serverError.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({
-                    path: userDocRef.path,
-                    operation: 'create',
-                    requestResourceData: userProfile,
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            } else {
-                toast({
-                    variant: "destructive",
-                    title: "Signup Failed",
-                    description: "Could not create user profile.",
-                });
-            }
-        });
+      // Use await here to ensure profile creation is attempted before verification email
+      await setDoc(userDocRef, userProfile);
       
-      // Send email verification - do this after attempting to create profile
+      // Send email verification
       await sendEmailVerification(user);
       
       toast({
         title: "Account Created!",
-        description: "A verification email has been sent to your inbox. Please verify your email to log in.",
+        description: "A verification email has been sent. Please verify your email, then log in.",
       });
 
-      // Redirect user to the login page after signup
+      // Redirect user to the login page immediately after signup
       router.push("/login");
 
     } catch (error: any) {
-      // Display a toast message with the error
-      toast({
-        variant: "destructive",
-        title: "Signup Failed",
-        description: error.message || "An unexpected error occurred.",
-      });
+       if (error.code === 'permission-denied') {
+            const userDocRef = doc(db, 'users', error.request?.resource?.name?.split('/').pop() || 'unknown-uid');
+            const permissionError = new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'create',
+                requestResourceData: {email: values.email, role: 'free'},
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+            // Display a toast message with the error
+            toast({
+                variant: "destructive",
+                title: "Signup Failed",
+                description: error.message || "An unexpected error occurred.",
+            });
+        }
     } finally {
       setLoading(false);
     }

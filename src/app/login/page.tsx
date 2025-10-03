@@ -30,6 +30,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { auth, db, user: authUser, loading: authLoading } = useAuth();
 
+  // This effect will still handle the case where a user who is ALREADY logged in visits the page.
   useEffect(() => {
     if (!authLoading && authUser) {
       const redirectPath = authUser.role === 'admin' ? '/admin' : '/dashboard';
@@ -48,25 +49,15 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Fetch user role from Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      let role = 'free'; // Default role
-      if (userDocSnap.exists()) {
-        role = userDocSnap.data().role || 'free';
-      }
+      await signInWithEmailAndPassword(auth, values.email, values.password);
       
       toast({
         title: "Login Successful",
         description: "Redirecting to your dashboard...",
       });
 
-      const redirectPath = role === 'admin' ? '/admin' : '/dashboard';
-      router.replace(redirectPath);
+      // Redirect immediately on success. AuthProvider will handle admin redirection.
+      router.replace('/dashboard');
 
     } catch (error: any) {
       toast({
@@ -76,10 +67,11 @@ export default function LoginPage() {
       });
       setLoading(false);
     }
-    // No need to set loading to false on success, as we are redirecting
+    // Don't set loading to false on success because we are navigating away.
   }
 
-  if (authLoading || (!authLoading && authUser)) {
+  // Show a loading indicator while the initial auth state is being checked or if already logged in.
+  if (authLoading || authUser) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
             <p>Loading...</p>
