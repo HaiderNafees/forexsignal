@@ -2,7 +2,7 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -10,17 +10,17 @@ import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteD
 import type { User, Signal } from '@/lib/types';
 import { SIGNALS as placeholderSignals, USERS as placeholderUsers } from '@/lib/placeholder-data';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
-    authDomain: "forexsignal-371b3.firebaseapp.com",
-    projectId: "forexsignal-371b3",
-    storageBucket: "forexsignal-371b3.appspot.com",
-    messagingSenderId: "617111923339",
-    appId: "1:617111923339:web:063a079794acf64a3e028e"
+  apiKey: "AIzaSyDLXBA-IFpLqr7wQ9BT9G-mgY94qWFbGUY",
+  authDomain: "studio-7266010797-fc857.firebaseapp.com",
+  projectId: "studio-7266010797-fc857",
+  storageBucket: "studio-7266010797-fc857.appspot.com",
+  messagingSenderId: "1042174511317",
+  appId: "1:1042174511317:web:1e87e6a61932d20ade3a5c"
 };
 
 // Singleton pattern for Firebase instances
@@ -49,11 +49,11 @@ async function seedInitialData() {
         try {
             // Attempt to create the admin user. If it fails, it likely already exists.
             if(adminUserInAuth) {
-                await createUserWithEmailAndPassword(auth, 'admin@forexsignal.com', 'Admin798956!!');
+                const adminUserCred = await createUserWithEmailAndPassword(auth, 'admin@forexsignal.com', 'Admin798956!!');
                 console.log("Admin user created in Firebase Auth.");
                  // And also seed the firestore doc
-                 await setDoc(doc(db, 'users', 'admin001'), {
-                    uid: 'admin001',
+                 await setDoc(doc(db, 'users', adminUserCred.user.uid), {
+                    uid: adminUserCred.user.uid,
                     email: 'admin@forexsignal.com',
                     role: 'admin',
                     createdAt: serverTimestamp(),
@@ -125,7 +125,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-            setLoading(true);
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
@@ -135,7 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
-                        // User might be signing up, wait for doc creation
+                         // This case can happen if the Firestore doc isn't created yet during signup.
+                         // The signup function should handle creating the document.
+                         // We wait for that to happen. If it never does, user is effectively logged out.
                          setUser(null);
                     }
                 } catch(e) {
@@ -297,5 +298,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-    
