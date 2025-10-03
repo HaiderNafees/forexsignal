@@ -2,7 +2,7 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -10,7 +10,7 @@ import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteD
 import type { User, Signal } from '@/lib/types';
 import { SIGNALS as placeholderSignals, USERS as placeholderUsers } from '@/lib/placeholder-data';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { getAuth, type Auth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
@@ -28,45 +28,47 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
-if (typeof window !== 'undefined' && !getApps().length) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-} else if (typeof window !== 'undefined') {
-    app = getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
+if (typeof window !== 'undefined') {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
 }
 
 
 async function seedInitialData() {
+    if (typeof window === 'undefined' || (window as any).hasSeeded) return;
+
     try {
-        // This check is to prevent seeding every time on hot-reload in dev
-        if ((window as any).hasSeeded) return;
-
         console.log("Checking for initial data seed...");
+        
+        // This is a simplified check. In a real app, you'd use a more robust method.
+        const adminUserInAuth = placeholderUsers.find(u => u.email === 'admin@forexsignal.com');
 
-        const adminUserRef = doc(db, 'users', 'admin001');
-        const adminUserSnap = await getDoc(adminUserRef);
-
-        if (!adminUserSnap.exists()) {
-            console.log("Seeding admin user and initial signals...");
-            const adminData = placeholderUsers.find(u => u.role === 'admin');
-            if (adminData) {
-                // In a real app, you'd have a secure script to create the auth user.
-                // For this project, we assume the auth user is created manually or via a separate script.
-                // We are only seeding the Firestore document.
-                await setDoc(adminUserRef, {
-                  uid: adminData.uid,
-                  email: adminData.email,
-                  role: adminData.role,
-                  createdAt: serverTimestamp(),
+        // Check if admin user needs to be created in Auth
+        // This is a workaround for the demo. In a real app, you'd have a secure admin creation script.
+        try {
+            // Attempt to create the admin user. If it fails, it likely already exists.
+            if(adminUserInAuth) {
+                await createUserWithEmailAndPassword(auth, 'admin@forexsignal.com', 'Admin798956!!');
+                console.log("Admin user created in Firebase Auth.");
+                 // And also seed the firestore doc
+                 await setDoc(doc(db, 'users', 'admin001'), {
+                    uid: 'admin001',
+                    email: 'admin@forexsignal.com',
+                    role: 'admin',
+                    createdAt: serverTimestamp(),
                 });
-                console.log("IMPORTANT: Ensure admin user 'admin@forexsignal.com' with password 'Admin798956!!' exists in Firebase Authentication.");
+                console.log("Admin user profile created in Firestore.");
+            }
+        } catch (error: any) {
+            if (error.code !== 'auth/email-already-in-use') {
+                 console.error("Error creating admin user:", error);
+            } else {
+                console.log("Admin user already exists in Firebase Auth.");
             }
         }
-        
-        // Check if signals collection is empty by trying to get one doc
+
+        // Check if signals collection is empty
         const firstSignalRef = doc(db, 'signals', 'sig001');
         const firstSignalSnap = await getDoc(firstSignalRef);
 
@@ -79,7 +81,7 @@ async function seedInitialData() {
             await Promise.all(signalPromises);
         }
 
-        (window as any).hasSeeded = true; // Mark as seeded
+        (window as any).hasSeeded = true;
         console.log("Seeding check complete.");
 
     } catch (error) {
@@ -123,28 +125,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+            setLoading(true);
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
                 try {
                     const userSnap = await getDoc(userRef);
                     if (userSnap.exists()) {
-                        setUser({ uid: userSnap.id, ...userSnap.data() } as User);
+                        const userData = { uid: userSnap.id, ...userSnap.data() } as User;
+                        setUser(userData);
                     } else {
-                        // This can happen if the user exists in Auth but not in Firestore.
-                        // For this app, we'll log them out to force a clean signup.
-                        console.warn("User record not found in Firestore. Forcing logout.");
-                        await signOut(auth);
-                        setUser(null); 
+                        // User might be signing up, wait for doc creation
+                         setUser(null);
                     }
                 } catch(e) {
                     console.error("Error fetching user document", e);
-                    // Handle offline error gracefully
-                     if ((e as any).code === 'unavailable') {
+                    if ((e as any).code === 'unavailable') {
                         toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection.' });
                     }
+                    setUser(null);
                 }
-
             } else {
                 setUser(null);
             }
@@ -154,30 +154,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribe();
     }, [toast]);
 
-    // Real-time listeners for signals and users
+    // Real-time listeners for signals and users (conditionally)
     useEffect(() => {
+        if (!db) return;
         const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
         const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
             const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
             setSignals(signalsData);
         }, (error) => {
             console.error("Error fetching signals:", error);
-            // Don't toast on every error, could be noisy (e.g., permissions)
+            if(error.code === 'permission-denied' && !user) {
+              // This is expected for logged out users, do nothing.
+            } else {
+               toast({ variant: 'destructive', title: 'Error', description: 'Could not load signals.' });
+            }
         });
-        
-        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-        const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-            const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-            setUsers(usersData);
-        }, (error) => {
-            console.error("Error fetching users:", error);
-        });
+
+        let unsubscribeUsers = () => {};
+        // Only admins can listen to all users
+        if (user && user.role === 'admin') {
+            const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+            unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+                const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+                setUsers(usersData);
+            }, (error) => {
+                console.error("Error fetching users:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
+            });
+        } else {
+            setUsers([]); // Clear users if not admin
+        }
+
 
         return () => {
             unsubscribeSignals();
             unsubscribeUsers();
         };
-    }, []);
+    }, [user, toast]);
 
   const logout = useCallback(async () => {
     try {
