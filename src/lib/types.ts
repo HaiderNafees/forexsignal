@@ -1,4 +1,6 @@
 
+import type { Timestamp } from 'firebase/firestore';
+
 export interface User {
   uid: string;
   email: string;
@@ -16,4 +18,11 @@ export interface Signal {
   takeProfit: number;
   status: 'free' | 'premium';
   createdAt: string;
+}
+
+export interface UpgradeRequest {
+    id: string;
+    uid: string;
+    email: string;
+    requestedAt: Timestamp;
 }

@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["free", "pro", "admin"],
+          "description": "The user's role."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time the user was created."
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Signal": {
+      "title": "Signal",
+      "description": "A trading signal.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The signal's unique ID."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the signal."
+        },
+        "pair": {
+          "type": "string",
+          "description": "The currency pair, e.g., 'XAU/USD'."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "The action to take."
+        },
+        "entry": {
+          "type": "number",
+          "description": "The entry price."
+        },
+        "stopLoss": {
+          "type": "number",
+          "description": "The stop loss price."
+        },
+        "takeProfit": {
+          "type": "number",
+          "description": "The take profit price."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["free", "premium"],
+          "description": "The status of the signal."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time the signal was created."
+        }
+      },
+      "required": ["id", "title", "pair", "action", "entry", "stopLoss", "takeProfit", "status", "createdAt"]
+    },
+    "UpgradeRequest": {
+      "title": "Upgrade Request",
+      "description": "A user's request to upgrade their account to Pro.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique ID of the user requesting the upgrade."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email of the user requesting the upgrade."
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the upgrade was requested."
+        }
+      },
+      "required": ["uid", "email", "requestedAt"]
+    }
+  },
+  "auth": {
+    "providers": ["email"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profile information."
+    },
+    "/signals/{signalId}": {
+      "schema": {
+        "$ref": "#/entities/Signal"
+      },
+      "description": "Stores trading signals."
+    },
+    "/upgrade_requests/{requestId}": {
+        "schema": {
+            "$ref": "#/entities/UpgradeRequest"
+        },
+        "description": "Logs user requests to upgrade to the Pro plan."
+    }
+  }
+}

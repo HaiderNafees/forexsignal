@@ -20,6 +20,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
 
 const tiers = [
   {
@@ -84,18 +87,43 @@ const pricingFaqs = [
 ]
 
 export default function PricingPage() {
-    const { user, updateUserRole } = useAuth();
+    const { user, db } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
 
-    const handleUpgradeConfirm = () => {
-        if (!user) return;
-        updateUserRole(user.uid, 'pro');
-        toast({
-            title: "Upgrade Successful!",
-            description: "Your account has been upgraded to Pro. Welcome to the next level!",
-        });
-        router.push('/dashboard');
+    const handleRequestUpgrade = async () => {
+        if (!user || !db) return;
+
+        const requestData = {
+            uid: user.uid,
+            email: user.email,
+            requestedAt: serverTimestamp(),
+        };
+        const requestsCollection = collection(db, 'upgrade_requests');
+        
+        addDoc(requestsCollection, requestData)
+            .then(() => {
+                toast({
+                    title: "Upgrade Request Submitted!",
+                    description: "Your request has been sent to our team. We will upgrade your account after verifying payment.",
+                });
+            })
+            .catch((serverError) => {
+                if (serverError.code === 'permission-denied') {
+                    const permissionError = new FirestorePermissionError({
+                        path: requestsCollection.path,
+                        operation: 'create',
+                        requestResourceData: requestData
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
+                } else {
+                    toast({
+                        variant: "destructive",
+                        title: "Request Failed",
+                        description: "Could not submit your upgrade request. Please try again or contact support."
+                    });
+                }
+            });
     };
     
     const handleGoProClick = () => {
@@ -159,13 +187,13 @@ export default function PricingPage() {
                                     <div><span className="font-semibold">Account Number:</span> 1234567890</div>
                                     <div><span className="font-semibold">Reference:</span> {user.email}</div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded instantly.</div>
+                                <div className="text-xs text-muted-foreground">After making the payment, click the button below. An admin will verify and approve your request.</div>
                             </div>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleUpgradeConfirm}>I Have Made The Payment</AlertDialogAction>
+                          <AlertDialogAction onClick={handleRequestUpgrade}>I Have Made The Payment</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
