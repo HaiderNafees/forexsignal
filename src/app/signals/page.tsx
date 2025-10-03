@@ -14,9 +14,9 @@ function SignalCard({ signal, isLocked }: { signal: Signal, isLocked: boolean })
   return (
     <Card className="flex flex-col transition-all hover:shadow-lg hover:-translate-y-1 relative">
       {isLocked && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-lg">
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-lg p-4">
             <Lock className="h-8 w-8 text-primary mb-2"/>
-            <p className="font-semibold text-center px-4">This is a premium signal.</p>
+            <p className="font-semibold text-center">This is a premium signal.</p>
             <Button asChild size="sm" className="mt-4">
                 <Link href="/pricing">Unlock with Pro</Link>
             </Button>

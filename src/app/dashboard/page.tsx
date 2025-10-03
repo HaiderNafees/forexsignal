@@ -13,11 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 
-function SignalCard({ signal, isLocked }: { signal: Signal; isLocked: boolean }) {
+function SignalCard({ signal }: { signal: Signal; }) {
   const isBuy = signal.action === 'BUY';
   
   return (
-    <Card className={cn("flex flex-col transition-all", isLocked && "bg-muted/50")}>
+    <Card className="flex flex-col transition-all">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -30,13 +30,7 @@ function SignalCard({ signal, isLocked }: { signal: Signal; isLocked: boolean })
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 text-sm relative">
-        {isLocked && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-lg">
-                <Lock className="h-8 w-8 text-primary mb-2"/>
-                <p className="font-semibold">Unlock with Pro</p>
-            </div>
-        )}
+      <CardContent className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
         <p>Entry: {signal.entry.toFixed(4)}</p>
         <p>Stop Loss: {signal.stopLoss.toFixed(4)}</p>
         <p>Take Profit: {signal.takeProfit.toFixed(4)}</p>
@@ -101,6 +95,7 @@ export default function DashboardPage() {
   }
 
   const isPro = user.role === 'pro';
+  const visibleSignals = isPro ? signals : signals.filter(s => s.status === 'free');
 
   return (
     <div className="min-h-screen bg-background pt-24">
@@ -115,13 +110,15 @@ export default function DashboardPage() {
         {!isPro && <div className="mb-8"><UpgradeAlert /></div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {signals.map((signal, index) => {
-            const isLocked = !isPro && signal.status === 'premium';
-            const showSignal = isPro || user.role === 'admin' || signal.status === 'free';
-            if (!showSignal) return null;
-            return <SignalCard key={signal.id} signal={signal} isLocked={isLocked}/>
-          })}
+          {visibleSignals.map((signal) => (
+            <SignalCard key={signal.id} signal={signal} />
+          ))}
         </div>
+        {visibleSignals.length === 0 && !loading && (
+          <div className="text-center py-16 bg-card rounded-lg">
+            <p className="text-muted-foreground">No signals available for your current plan right now. Check back later!</p>
+          </div>
+        )}
       </div>
     </div>
   );
