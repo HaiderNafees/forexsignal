@@ -84,14 +84,16 @@ const pricingFaqs = [
 ]
 
 export default function PricingPage() {
-    const { user } = useAuth();
+    const { user, updateUserRole } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
 
     const handleUpgradeConfirm = () => {
+        if (!user) return;
+        updateUserRole(user.uid, 'pro');
         toast({
-            title: "Payment Verification Pending",
-            description: "Your payment is being verified. You will receive an email confirmation and your account will be upgraded to Pro within 48 hours.",
+            title: "Upgrade Successful!",
+            description: "Your account has been upgraded to Pro. Welcome to the next level!",
         });
         router.push('/dashboard');
     };
@@ -157,7 +159,7 @@ export default function PricingPage() {
                                     <div><span className="font-semibold">Account Number:</span> 1234567890</div>
                                     <div><span className="font-semibold">Reference:</span> {user.email}</div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded once payment is verified (usually within 48 hours).</div>
+                                <div className="text-xs text-muted-foreground">After making the payment, click the button below to confirm. Your account will be upgraded instantly.</div>
                             </div>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
@@ -226,3 +228,5 @@ export default function PricingPage() {
     </div>
   );
 }
+
+    
