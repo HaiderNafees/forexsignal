@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { doc, getDoc } from "firebase/firestore";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -27,18 +28,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { auth, user, loading: authLoading } = useAuth();
+  const { auth, db, user: authUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) {
-        toast({
-            title: "Login Successful",
-            description: "Redirecting to your dashboard...",
-        });
-        const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
-        router.replace(redirectPath);
+    if (!authLoading && authUser) {
+      const redirectPath = authUser.role === 'admin' ? '/admin' : '/dashboard';
+      router.replace(redirectPath);
     }
-  }, [user, authLoading, router, toast]);
+  }, [authUser, authLoading, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,24 +48,43 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      // The useEffect hook will handle the redirection.
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      // Fetch user role from Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      let role = 'free'; // Default role
+      if (userDocSnap.exists()) {
+        role = userDocSnap.data().role || 'free';
+      }
+      
+      toast({
+        title: "Login Successful",
+        description: "Redirecting to your dashboard...",
+      });
+
+      const redirectPath = role === 'admin' ? '/admin' : '/dashboard';
+      router.replace(redirectPath);
+
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Login Failed",
         description: error.message || "An unexpected error occurred.",
       });
-    } finally {
-        setLoading(false);
+      setLoading(false);
     }
+    // No need to set loading to false on success, as we are redirecting
   }
 
-  // If we are not loading and the user is already logged in, redirect them.
-  // This handles cases where the user navigates back to the login page.
-  if (!authLoading && user) {
-    // You can show a loading indicator here, or just null while redirecting.
-    return null;
+  if (authLoading || (!authLoading && authUser)) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+            <p>Loading...</p>
+        </div>
+    );
   }
 
   return (
@@ -110,8 +126,8 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading || authLoading}>
-                {loading || authLoading ? "Signing In..." : "Sign In"}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
           </Form>
