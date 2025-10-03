@@ -120,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
+                         // This case can happen if the user record is not yet created during signup
                          setUser(null);
                     }
                 } catch(e: any) {

@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
@@ -27,7 +27,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { auth } = useAuth();
+  const { auth, user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    // This effect runs when the `user` object is available and not in a loading state.
+    if (!authLoading && user) {
+        toast({
+            title: "Login Successful",
+            description: "Redirecting to your dashboard...",
+        });
+        const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
+        router.push(redirectPath);
+    }
+  }, [user, authLoading, router, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,16 +52,9 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      // Sign in the user with email and password
+      // Sign in the user with email and password.
+      // The useEffect hook will handle the redirection.
       await signInWithEmailAndPassword(auth, values.email, values.password);
-      
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-
-      // Redirect to the dashboard on successful login
-      router.push('/dashboard');
 
     } catch (error: any) {
       // Display an error message if login fails
@@ -58,8 +63,7 @@ export default function LoginPage() {
         title: "Login Failed",
         description: error.message || "An unexpected error occurred.",
       });
-    } finally {
-      setLoading(false);
+      setLoading(false); // Only stop loading on error, success is handled by useEffect
     }
   }
 
@@ -118,5 +122,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    
