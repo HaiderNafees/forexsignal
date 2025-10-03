@@ -30,8 +30,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { auth, db, user: authUser, loading: authLoading } = useAuth();
 
-  // This effect will still handle the case where a user who is ALREADY logged in visits the page.
   useEffect(() => {
+    // If the auth state is resolved and we have a user, redirect them.
     if (!authLoading && authUser) {
       const redirectPath = authUser.role === 'admin' ? '/admin' : '/dashboard';
       router.replace(redirectPath);
@@ -56,8 +56,8 @@ export default function LoginPage() {
         description: "Redirecting to your dashboard...",
       });
 
-      // Redirect immediately on success. AuthProvider will handle admin redirection.
-      router.replace('/dashboard');
+      // The useEffect will now handle redirection, as it's more reliable.
+      // This function's primary job is just the sign-in attempt.
 
     } catch (error: any) {
       toast({
@@ -65,12 +65,13 @@ export default function LoginPage() {
         title: "Login Failed",
         description: error.message || "An unexpected error occurred.",
       });
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
-    // Don't set loading to false on success because we are navigating away.
   }
 
-  // Show a loading indicator while the initial auth state is being checked or if already logged in.
+  // Show a loading indicator if the initial auth check is in progress
+  // OR if we already have a user and are about to redirect.
   if (authLoading || authUser) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">

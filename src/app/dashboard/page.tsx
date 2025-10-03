@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -70,15 +71,20 @@ export default function DashboardPage() {
   const router = useRouter();
   
   React.useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/login');
-    }
-    if(!loading && user && user.role === 'admin') {
-      router.replace('/admin');
+    // Only redirect when the auth state is resolved.
+    if (!loading) {
+      if (!user) {
+        // If no user, redirect to login.
+        router.replace('/login');
+      } else if (user.role === 'admin') {
+        // If user is admin, redirect to admin page.
+        router.replace('/admin');
+      }
     }
   }, [user, loading, router]);
 
-  if (loading || !user) {
+  // Show a loading skeleton while auth state is resolving OR if the user is not the correct role yet.
+  if (loading || !user || user.role === 'admin') {
     return (
       <div className="container mx-auto py-10 px-4 pt-24">
         <div className="space-y-4">

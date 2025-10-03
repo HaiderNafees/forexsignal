@@ -14,12 +14,17 @@ export default function AdminPage() {
   const isAdmin = user?.role === 'admin' && user?.email === 'forexsignaldmn@gmail.com';
 
   React.useEffect(() => {
-    if (!loading && !isAdmin) {
-      router.replace('/login');
+    // Only redirect when the auth state is resolved
+    if (!loading) {
+      // If there's no user OR the user is not an admin, redirect away.
+      if (!user || !isAdmin) {
+        router.replace('/login');
+      }
     }
   }, [user, loading, router, isAdmin]);
 
-  if (loading || !isAdmin) {
+  // Show a loading skeleton while auth state is resolving OR if the user is not an admin yet.
+  if (loading || !isAdmin || !user) {
     return (
       <div className="container mx-auto py-10 px-4 pt-24">
         <div className="space-y-4">
@@ -49,5 +54,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
