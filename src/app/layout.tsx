@@ -1,9 +1,11 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/auth-provider';
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/layout/footer';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
   title: 'ForexEdge | Premium Forex Signals & Analytics',
@@ -24,6 +26,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
+          <FirebaseErrorListener />
           <Header />
           <main>{children}</main>
           <Footer />

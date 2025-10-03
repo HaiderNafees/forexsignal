@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
 import { useRouter } from "next/navigation";
+import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
+import { errorEmitter } from "@/firebase/error-emitter";
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Name must be at least 2 characters."}),
@@ -54,16 +56,35 @@ export default function SignupPage() {
 
       const user = userCredential.user;
 
-      // Send email verification
-      await sendEmailVerification(user);
-
       // Store user profile information in Firestore
-      await setDoc(doc(db, 'users', user.uid), {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userProfile = {
         fullName: values.fullName,
         email: values.email,
         role: 'free', // Default role for new users
         createdAt: serverTimestamp(),
-      });
+      };
+      
+      setDoc(userDocRef, userProfile)
+        .catch(async (serverError) => {
+            if (serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: userDocRef.path,
+                    operation: 'create',
+                    requestResourceData: userProfile,
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Signup Failed",
+                    description: "Could not create user profile.",
+                });
+            }
+        });
+      
+      // Send email verification - do this after attempting to create profile
+      await sendEmailVerification(user);
       
       toast({
         title: "Account Created!",
@@ -153,5 +174,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    
