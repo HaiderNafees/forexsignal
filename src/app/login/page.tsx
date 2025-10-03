@@ -28,10 +28,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { auth, db, user: authUser, loading: authLoading } = useAuth();
+  const { auth, user: authUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // If the auth state is resolved and we have a user, redirect them.
+    // If the auth state is resolved and we have a user, redirect them away from the login page.
     if (!authLoading && authUser) {
       const redirectPath = authUser.role === 'admin' ? '/admin' : '/dashboard';
       router.replace(redirectPath);
@@ -56,8 +56,7 @@ export default function LoginPage() {
         description: "Redirecting to your dashboard...",
       });
 
-      // The useEffect will now handle redirection, as it's more reliable.
-      // This function's primary job is just the sign-in attempt.
+      // The useEffect will now handle redirection based on the updated authUser state.
 
     } catch (error: any) {
       toast({
@@ -72,6 +71,7 @@ export default function LoginPage() {
 
   // Show a loading indicator if the initial auth check is in progress
   // OR if we already have a user and are about to redirect.
+  // This prevents a flash of the login form before redirection.
   if (authLoading || authUser) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">

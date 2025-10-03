@@ -71,19 +71,20 @@ export default function DashboardPage() {
   const router = useRouter();
   
   React.useEffect(() => {
-    // Only redirect when the auth state is resolved.
+    // Wait until the authentication check is complete.
     if (!loading) {
       if (!user) {
-        // If no user, redirect to login.
+        // If there's no user after loading, they are not logged in.
         router.replace('/login');
       } else if (user.role === 'admin') {
-        // If user is admin, redirect to admin page.
+        // If the user is an admin, they should be on the admin page.
         router.replace('/admin');
       }
     }
   }, [user, loading, router]);
 
   // Show a loading skeleton while auth state is resolving OR if the user is not the correct role yet.
+  // This prevents a flash of the dashboard before a potential redirect.
   if (loading || !user || user.role === 'admin') {
     return (
       <div className="container mx-auto py-10 px-4 pt-24">
