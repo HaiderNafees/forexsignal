@@ -69,7 +69,7 @@ async function seedInitialData() {
         console.log("Seeding check complete.");
 
     } catch (error: any) {
-        if(error.code === 'auth/configuration-not-found') {
+        if((error as any).code === 'auth/configuration-not-found') {
             console.warn("Auth configuration not found. This might be expected in some environments. Skipping admin creation.");
         } else {
             console.error("Error during initial data seed:", error);
@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Only admin users can read the full user list
         let unsubscribeUsers = () => {};
-        if (user?.role === 'admin') {
+        if (user.role === 'admin') {
             const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
             unsubscribeUsers = onSnapshot(usersQuery, 
                 (snapshot) => {
