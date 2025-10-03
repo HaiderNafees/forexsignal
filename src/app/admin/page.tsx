@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -10,13 +11,15 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  const isAdmin = user?.role === 'admin' && user?.email === 'forexsignaldmn@gmail.com';
+
   React.useEffect(() => {
-    if (!loading && (!user || user.role !== 'admin')) {
+    if (!loading && !isAdmin) {
       router.replace('/login');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, isAdmin]);
 
-  if (loading || !user || user.role !== 'admin') {
+  if (loading || !isAdmin) {
     return (
       <div className="container mx-auto py-10 px-4 pt-24">
         <div className="space-y-4">
@@ -46,3 +49,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

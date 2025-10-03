@@ -43,7 +43,7 @@ async function seedInitialData() {
         console.log("Checking for initial data seed...");
         
         try {
-            await createUserWithEmailAndPassword(auth, 'admin@forexsignal.com', 'Admin798956!!');
+            await createUserWithEmailAndPassword(auth, 'forexsignaldmn@gmail.com', 'Admin798956!!');
             console.log("Admin user created in Firebase Auth.");
         } catch (error: any) {
             if (error.code !== 'auth/email-already-in-use') {
@@ -110,7 +110,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-            setLoading(true);
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
@@ -353,3 +352,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+    
