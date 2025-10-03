@@ -124,6 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
+                         // This case can happen if the user record is deleted from Firestore
+                         // but they are still authenticated. We should log them out.
+                         await signOut(auth);
                          setUser(null);
                     }
                 } catch(e: any) {
@@ -133,10 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             operation: 'get',
                         } satisfies SecurityRuleContext);
                         errorEmitter.emit('permission-error', permissionError);
-                    } else if (e.code === 'unavailable') {
-                        toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection and Firestore rules.' });
                     } else {
                         console.error("Error fetching user document", e);
+                         toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection and Firestore rules.' });
                     }
                     setUser(null);
                 }
