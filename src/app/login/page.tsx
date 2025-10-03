@@ -63,7 +63,8 @@ export default function LoginPage() {
         title: "Login Failed",
         description: error.message || "An unexpected error occurred.",
       });
-      setLoading(false); // Only stop loading on error, success is handled by useEffect
+    } finally {
+        setLoading(false);
     }
   }
 
