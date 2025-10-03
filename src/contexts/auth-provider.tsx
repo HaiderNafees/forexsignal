@@ -15,13 +15,14 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDLXBA-IFpLqr7wQ9BT9G-mgY94qWFbGUY",
-  authDomain: "studio-7266010797-fc857.firebaseapp.com",
-  projectId: "studio-7266010797-fc857",
-  storageBucket: "studio-7266010797-fc857.appspot.com",
-  messagingSenderId: "1042174511317",
-  appId: "1:1042174511317:web:1e87e6a61932d20ade3a5c"
+  apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
+  authDomain: "forexsignal-371b3.firebaseapp.com",
+  projectId: "forexsignal-371b3",
+  storageBucket: "forexsignal-371b3.appspot.com",
+  messagingSenderId: "617111923339",
+  appId: "1:617111923339:web:063a079794acf64a3e028e"
 };
+
 
 // Singleton pattern for Firebase instances
 let app: FirebaseApp;
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+            setLoading(true);
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
@@ -134,9 +136,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
-                         // This case can happen if the Firestore doc isn't created yet during signup.
-                         // The signup function should handle creating the document.
-                         // We wait for that to happen. If it never does, user is effectively logged out.
                          setUser(null);
                     }
                 } catch(e) {
@@ -172,8 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         let unsubscribeUsers = () => {};
-        // Only admins can listen to all users
-        if (user && user.role === 'admin') {
+        if (user?.role === 'admin') {
             const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
             unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
                 const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
@@ -183,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
             });
         } else {
-            setUsers([]); // Clear users if not admin
+            setUsers([]); 
         }
 
 
@@ -221,8 +219,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const deleteUser = useCallback(async (userId: string) => {
-    // In a real app, this would require an admin function to delete the Auth user.
-    // Here we just delete the Firestore record.
     const userRef = doc(db, 'users', userId);
     try {
         await deleteDoc(userRef);
