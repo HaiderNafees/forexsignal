@@ -15,12 +15,12 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
-  authDomain: "forexsignal-371b3.firebaseapp.com",
-  projectId: "forexsignal-371b3",
-  storageBucket: "forexsignal-371b3.appspot.com",
-  messagingSenderId: "617111923339",
-  appId: "1:617111923339:web:063a079794acf64a3e028e"
+    apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
+    authDomain: "forexsignal-371b3.firebaseapp.com",
+    projectId: "forexsignal-371b3",
+    storageBucket: "forexsignal-371b3.appspot.com",
+    messagingSenderId: "617111923339",
+    appId: "1:617111923339:web:063a079794acf64a3e028e"
 };
 
 
@@ -42,17 +42,12 @@ async function seedInitialData() {
     try {
         console.log("Checking for initial data seed...");
         
-        // This is a simplified check. In a real app, you'd use a more robust method.
         const adminUserInAuth = placeholderUsers.find(u => u.email === 'admin@forexsignal.com');
 
-        // Check if admin user needs to be created in Auth
-        // This is a workaround for the demo. In a real app, you'd have a secure admin creation script.
         try {
-            // Attempt to create the admin user. If it fails, it likely already exists.
             if(adminUserInAuth) {
                 const adminUserCred = await createUserWithEmailAndPassword(auth, 'admin@forexsignal.com', 'Admin798956!!');
                 console.log("Admin user created in Firebase Auth.");
-                 // And also seed the firestore doc
                  await setDoc(doc(db, 'users', adminUserCred.user.uid), {
                     uid: adminUserCred.user.uid,
                     email: 'admin@forexsignal.com',
@@ -69,7 +64,6 @@ async function seedInitialData() {
             }
         }
 
-        // Check if signals collection is empty
         const firstSignalRef = doc(db, 'signals', 'sig001');
         const firstSignalSnap = await getDoc(firstSignalRef);
 
@@ -118,12 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { toast } = useToast();
 
-    // Seed data on initial client-side load
     useEffect(() => {
         seedInitialData();
     }, []);
 
-    // Listen for auth state changes
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
             setLoading(true);
@@ -136,6 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
+                         // This case can happen if the user doc isn't created yet after signup
+                         // We set user to null and the signup page logic should handle redirection
                          setUser(null);
                     }
                 } catch(e) {
@@ -156,20 +150,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Real-time listeners for signals and users (conditionally)
     useEffect(() => {
-        if (!db) return;
+        if (!user || !db) {
+            setSignals([]);
+            setUsers([]);
+            return;
+        };
+        
+        // Only authenticated users can read signals
         const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
         const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
             const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
             setSignals(signalsData);
         }, (error) => {
             console.error("Error fetching signals:", error);
-            if(error.code === 'permission-denied' && !user) {
-              // This is expected for logged out users, do nothing.
+            if (error.code === 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to view signals.' });
             } else {
                toast({ variant: 'destructive', title: 'Error', description: 'Could not load signals.' });
             }
         });
 
+        // Only admin users can read the full user list
         let unsubscribeUsers = () => {};
         if (user?.role === 'admin') {
             const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -183,7 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
             setUsers([]); 
         }
-
 
         return () => {
             unsubscribeSignals();
