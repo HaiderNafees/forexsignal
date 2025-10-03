@@ -3,37 +3,48 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
+    // Helper function to check if a user is an admin
     function isAdmin() {
+      // Check if the requesting user's document in the 'users' collection has the role 'admin'.
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Allow users to create their own profile on signup
-      allow create: if request.auth != null;
+      // READ:
+      // - A user can read their own profile.
+      // - An admin can read any user's profile.
+      allow read: if request.auth.uid == userId || isAdmin();
+
+      // CREATE:
+      // - Any authenticated user can create their own user profile upon signup.
+      allow create: if request.auth != null && request.auth.uid == userId;
       
-      // Allow users to read their own data
-      // Allow admins to read all user data
-      allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
-      
-      // Allow users to update their own data (but not their role)
-      allow update: if request.auth != null && request.auth.uid == userId && !("role" in request.resource.data);
-      
-      // Allow admins to update any user's role
-      allow update: if isAdmin();
-      
-      // Only allow admins to delete users
+      // UPDATE:
+      // - A user can update their own profile (but not their role).
+      // - An admin can update ONLY the 'role' of any user.
+      allow update: if (request.auth.uid == userId && !("role" in request.resource.data)) || (isAdmin() && request.resource.data.keys().hasOnly(["role", "fullName", "email", "createdAt"]));
+
+      // DELETE:
+      // - Only an admin can delete a user record.
       allow delete: if isAdmin();
+    }
+
+    // LIST (for collections):
+    // - An admin can list all users.
+    match /users/{document=**} {
+      allow list: if isAdmin();
     }
     
     // Rules for the 'signals' collection
     match /signals/{signalId} {
-      // Any authenticated user can read signals
-      allow read: if request.auth != null;
+      // READ/LIST:
+      // - Any authenticated user can read or list signals.
+      // - The UI will handle which signals to show based on user role.
+      allow read, list: if request.auth != null;
       
-      // Only admins can create, update, or delete signals
+      // CREATE, UPDATE, DELETE:
+      // - Only an admin can create, update, or delete signals.
       allow write: if isAdmin();
     }
   }
