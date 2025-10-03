@@ -119,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
+                         // This case might happen if the user doc creation fails after signup.
                          setUser(null);
                     }
                 } catch(e: any) {
@@ -128,11 +129,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             operation: 'get',
                         } satisfies SecurityRuleContext);
                         errorEmitter.emit('permission-error', permissionError);
-                    } else {
+                    } else if (e.code === 'unavailable') {
+                        toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection and Firestore rules.' });
+                    }
+                     else {
                         console.error("Error fetching user document", e);
-                        if ((e as any).code === 'unavailable') {
-                            toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the database. Please check your internet connection.' });
-                        }
                     }
                     setUser(null);
                 }
@@ -168,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } satisfies SecurityRuleContext);
                     errorEmitter.emit('permission-error', permissionError);
                 } else {
+                   console.error("Signal listener error:", error);
                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load signals.' });
                 }
             }
@@ -190,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         } satisfies SecurityRuleContext);
                         errorEmitter.emit('permission-error', permissionError);
                     } else {
+                        console.error("User listener error:", error);
                         toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
                     }
                 }
@@ -338,7 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     updateUserRole,
     deleteUser,
-    addSignal,
+addSignal,
     updateSignal,
     deleteSignal,
     auth,
@@ -351,5 +354,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-    
