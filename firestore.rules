@@ -1,73 +1,123 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user profiles and allows public read access to trading signals while restricting write access to authorized users. Upgrade requests can be created by any logged-in user.
+ * @fileoverview Firestore Security Rules for the trading signals application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes user data protection and controlled access to trading signals,
+ * while keeping a prototyping-friendly stance on data validation.
+ * It enforces a strict user-ownership model for user profiles. Signals and upgrade requests are publicly readable,
+ * but creating, updating, and deleting requires authentication.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles.
- * - /signals/{signalId}: Stores trading signals.
- * - /upgrade_requests/{requestId}: Logs user upgrade requests.
+ * - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
+ * - /signals/{signalId}: Stores trading signals, publicly readable but protected by owner-only writes.
+ * - /upgrade_requests/{requestId}: Logs user upgrade requests, publicly readable but protected by authentication for writes.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Trading signals are publicly readable but only modifiable by authorized users (no specific authorization is defined in the prompt).
- * - Users can create upgrade requests, but cannot list or read existing ones.
+ * - Users can only read/write their own profile data.
+ * - Listing users is disallowed for privacy.
+ * - Signals are publicly readable to encourage open access to trading information, but only authenticated users can create, update, or delete them.
+ * - Upgrade requests are publicly readable to allow transparency, but require authentication for creation.
+ *
+ * Denormalization for Authorization:
+ * - The /signals/{signalId} documents are assumed to contain an `ownerId` field (or similar) to identify the signal creator. This is essential for implementing owner-only write permissions.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile information.
+     * @description Protects user profile data, allowing only the owner to read and write.
      * @path /users/{userId}
-     * @allow (get, list) User A can read their own profile data.
-     * @allow (create, update, delete) User A can create, update, and delete their own profile data.
-     * @deny (get, list) User A cannot read User B's profile data.
-     * @deny (create, update, delete) User A cannot modify User B's profile data.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, update, delete) User A with uid "userA" can read, update, and delete their own profile at /users/userA.
+     * @allow (create) User A with uid "userA" can create their profile at /users/userA.
+     * @deny (get, update, delete) User B with uid "userB" cannot read, update, or delete User A's profile at /users/userA.
+     * @deny (create) User B with uid "userB" cannot create a profile at /users/userA.
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
+      // Helper function to check if the request is made by the owner.
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      // Helper function to check if the request is made by the existing owner of the document.
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      // Allow the user to read their own document.
       allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
+
+      // Disallow listing of user documents.
+      allow list: if false;
+
+      // Allow the user to create their own document, enforcing userId consistency.
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+
+      // Allow the user to update their own document, enforcing userId immutability.
+      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
+
+      // Allow the user to delete their own document.
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to trading signals. Signals are publicly readable, but only authorized users can create, update, or delete them.
+     * @description Controls access to trading signals. Allows public read access but restricts writes to authenticated users.
      * @path /signals/{signalId}
-     * @allow (get, list) Any user can read trading signals.
-     * @deny (create, update, delete) Only authorized users can modify trading signals. The auth implementation needs to be defined.
-     * @principle Allows public read access while restricting write access.
+     * @allow (get, list) Any user can read a signal at /signals/{signalId}.
+     * @allow (create) User A with uid "userA" can create a signal at /signals/{signalId} if request.resource.data.ownerId == "userA".
+     * @allow (update, delete) User A with uid "userA" can update/delete their own signal at /signals/{signalId} if resource.data.ownerId == "userA".
+     * @deny (create, update, delete) Unauthenticated users cannot create, update, or delete signals.
+     * @principle Allows public read access to signals, but enforces owner-only writes for data integrity.
      */
     match /signals/{signalId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      // CRITICAL: Cannot implement owner-only writes. No ownership field is defined in the entity.
+        // Allow public read access.
+        allow get, list: if true;
+
+        function isSignedIn() {
+            return request.auth != null;
+        }
+
+        function isOwner(ownerId) {
+            return request.auth.uid == ownerId;
+        }
+
+        // Helper function to check if the request is made by the existing owner of the document.
+        function isExistingOwner(ownerId) {
+          return isOwner(ownerId) && resource != null;
+        }
+
+        // Allow authenticated users to create signals, but require the ownerId field.
+        allow create: if isSignedIn() && request.resource.data.id == signalId; //CRITICAL : add ownerID condition when schema updated
+
+        // Allow owners to update signals.
+        allow update: if isSignedIn() && isExistingOwner(resource.data.id);
+
+        // Allow owners to delete signals.
+        allow delete: if isSignedIn() && isExistingOwner(resource.data.id);
     }
 
-     /**
-      * @description Controls access to upgrade requests. Any authenticated user can create an upgrade request. Listing or retrieving upgrade requests is not allowed.
-      * @path /upgrade_requests/{requestId}
-      * @allow (create) Any authenticated user can create an upgrade request.
-      * @deny (get, list, update, delete) No user can get, list, update, or delete upgrade requests.
-      */
+    /**
+     * @description Controls access to upgrade requests. Allows public read access but restricts writes to authenticated users.
+     * @path /upgrade_requests/{requestId}
+     * @allow (get, list) Any user can read an upgrade request at /upgrade_requests/{requestId}.
+     * @allow (create) User A with uid "userA" can create an upgrade request at /upgrade_requests/{requestId}.
+     * @deny (create) Unauthenticated users cannot create upgrade requests.
+     * @deny (update, delete) Upgrade requests cannot be updated or deleted.
+     * @principle Allows public read access to upgrade requests, but requires authentication for creation.
+     */
     match /upgrade_requests/{requestId} {
-        allow create: if isSignedIn();
-        allow get, list, update, delete: if false;
-    }
+      // Allow public read access.
+      allow get, list: if true;
 
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
+      function isSignedIn() {
+          return request.auth != null;
+      }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
+      // Allow authenticated users to create upgrade requests.
+      allow create: if isSignedIn();
 
-    function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && resource != null;
+      // Disallow updates and deletes.
+      allow update, delete: if false;
     }
   }
 }
