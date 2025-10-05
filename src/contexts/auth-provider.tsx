@@ -11,7 +11,7 @@ import type { User, Signal } from '@/lib/types';
 import { SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore, CACHE_SIZE_UNLIMITED, memoryLocalCache } from "firebase/firestore";
+import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -35,9 +35,7 @@ let functions: Functions;
 if (typeof window !== 'undefined') {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app, {
-      localCache: memoryLocalCache({ cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
-  });
+  db = getFirestore(app);
   functions = getFunctions(app);
 }
 
@@ -126,14 +124,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 const userRef = doc(db, 'users', fbUser.uid);
-                const userSnap = await getDoc(userRef).catch(err => {
-                    console.error("Failed to fetch user document:", err);
-                    return null;
-                });
-                if (userSnap && userSnap.exists()) {
-                    const userData = { uid: userSnap.id, ...userSnap.data() } as User;
-                    setUser(userData);
-                } else {
+                try {
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        const userData = { uid: userSnap.id, ...userSnap.data() } as User;
+                        setUser(userData);
+                    } else {
+                        setUser(null);
+                    }
+                } catch (err: any) {
+                     if (err.code === 'unavailable') {
+                        // This can happen on first load or if network is temporarily down.
+                        // Firestore will retry, so we don't need to panic.
+                        console.warn("Firestore unavailable, will retry fetching user profile.");
+                    } else {
+                        console.error("Failed to fetch user document:", err);
+                        // Potentially a permissions error after a rules change
+                        if (err.code === 'permission-denied') {
+                             const permissionError = new FirestorePermissionError({
+                                path: userRef.path,
+                                operation: 'get',
+                            });
+                            errorEmitter.emit('permission-error', permissionError);
+                        }
+                    }
                     setUser(null);
                 }
             } else {
