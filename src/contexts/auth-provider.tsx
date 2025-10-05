@@ -156,10 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (user) {
-            if (user.role === 'admin' && pathname !== '/admin') {
-                 if(!pathname.startsWith('/admin')){
-                    router.replace('/admin');
-                 }
+            if (user.role === 'admin' && !pathname.startsWith('/admin')) {
+                router.replace('/admin');
             } else if (user.role !== 'admin' && pathname.startsWith('/admin')) {
                 router.replace('/dashboard');
             } else if (isPublicRoute) {
