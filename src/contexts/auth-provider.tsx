@@ -84,16 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                         const userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
                         setUser(userData);
                     } else {
-                        // This is a new user, create their profile document
-                        const newUserProfile = {
-                            uid: fbUser.uid,
-                            email: fbUser.email!,
-                            role: 'free', // Default role
-                            createdAt: serverTimestamp(),
-                        };
-                        
-                        const userDocRef = doc(db, 'users', fbUser.uid);
-                        await setDoc(userDocRef, newUserProfile);
+                        // This case handles a newly signed-up user whose profile is not yet created.
+                        // The `setUserRoleOnCreate` cloud function will create it. 
+                        // We set a temporary user object here.
                         setUser({
                              uid: fbUser.uid,
                              email: fbUser.email!,
@@ -251,27 +244,23 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   }, [toast, functions]);
 
   const deleteUser = useCallback(async (userId: string) => {
-    const userRef = doc(db, 'users', userId);
-    deleteDoc(userRef)
-        .then(() => {
-            toast({
-                variant: 'destructive',
-                title: 'User Record Removed',
-                description: 'The user record from Firestore has been removed.',
-            });
-        })
-        .catch((serverError) => {
-            if(serverError.code === 'permission-denied'){
-                const permissionError = new FirestorePermissionError({
-                    path: userRef.path,
-                    operation: 'delete',
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            } else {
-                 toast({ variant: 'destructive', title: "Delete Failed", description: 'Could not delete user record.' });
-            }
-        });
-  }, [toast]);
+    try {
+      const deleteUserFunc = httpsCallable(functions, 'deleteUser');
+      await deleteUserFunc({ uid: userId });
+      toast({
+        variant: 'destructive',
+        title: 'User Deleted',
+        description: 'The user has been successfully deleted.',
+      });
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: error.message || 'Could not delete the user.',
+      });
+    }
+  }, [toast, functions]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
     const collectionName = signalData.status === 'premium' ? 'signals_pro' : 'signals_free';

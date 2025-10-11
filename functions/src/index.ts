@@ -90,3 +90,50 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+
+export const deleteUser = functions.https.onCall(async (data, context) => {
+  if (context.auth?.token.role !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Only admins can delete users."
+    );
+  }
+
+  const { uid } = data;
+  if (!uid) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "The function must be called with a 'uid'."
+    );
+  }
+
+  try {
+    // Deleting the user from Firebase Authentication will trigger the `onUserDeleted` function
+    await admin.auth().deleteUser(uid);
+    return { message: `Successfully deleted user ${uid}` };
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found') {
+        // If user not in Auth, maybe just delete from firestore
+        await db.collection("users").doc(uid).delete();
+        return { message: `User ${uid} not found in Auth, deleted from Firestore.` };
+    }
+    console.error("Error deleting user:", error);
+    throw new functions.https.HttpsError(
+      "internal",
+      "An internal error occurred while deleting the user."
+    );
+  }
+});
+
+// Trigger to clean up user data in Firestore when a user is deleted from Auth
+export const onUserDeleted = functions.auth.user().onDelete(async (user) => {
+  const { uid } = user;
+  const userDocRef = db.collection("users").doc(uid);
+  try {
+    await userDocRef.delete();
+    console.log(`Successfully deleted user data for ${uid} from Firestore.`);
+  } catch (error) {
+    console.error(`Error deleting user data for ${uid}:`, error);
+  }
+});
