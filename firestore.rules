@@ -1,123 +1,137 @@
 /**
- * @fileoverview Firestore Security Rules for the trading signals application.
+ * @fileOverview Firestore Security Rules for the ForexEdge application.
  *
  * Core Philosophy:
- * This ruleset prioritizes user data protection and controlled access to trading signals,
- * while keeping a prototyping-friendly stance on data validation.
- * It enforces a strict user-ownership model for user profiles. Signals and upgrade requests are publicly readable,
- * but creating, updating, and deleting requires authentication.
+ * This ruleset enforces role-based access control. Users have roles (free, pro, admin).
+ * User data is protected via ownership. Free signals are publicly readable, while pro signals are restricted to pro users and admins.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles, accessible only by the user themselves.
- * - /signals/{signalId}: Stores trading signals, publicly readable but protected by owner-only writes.
- * - /upgrade_requests/{requestId}: Logs user upgrade requests, publicly readable but protected by authentication for writes.
+ * - /users/{userId}: Stores user profiles, with 'userId' matching the Firebase Authentication UID.
+ * - /roles_admin/{userId}: Presence of a document grants admin rights to the user.
+ * - /signals_free/{signalId}: Stores free signals, publicly readable.
+ * - /signals_pro/{signalId}: Stores pro signals, accessible only to pro users and admins.
  *
  * Key Security Decisions:
- * - Users can only read/write their own profile data.
- * - Listing users is disallowed for privacy.
- * - Signals are publicly readable to encourage open access to trading information, but only authenticated users can create, update, or delete them.
- * - Upgrade requests are publicly readable to allow transparency, but require authentication for creation.
+ * - User listing is disabled.
+ * - Admin status is determined by the existence of a document in /roles_admin/{userId}.
+ * - Roles are denormalized onto the user document itself for efficient access control.
+ * - No data type validation is performed in this prototype, except for authorization-critical fields.
  *
  * Denormalization for Authorization:
- * - The /signals/{signalId} documents are assumed to contain an `ownerId` field (or similar) to identify the signal creator. This is essential for implementing owner-only write permissions.
+ * - The user's role is stored directly in the /users/{userId} document to avoid needing to query a separate roles collection.
+ *
+ * Structural Segregation:
+ * - Signals are split into two collections (/signals_free and /signals_pro) based on their access level. This avoids the need for filtering rules and improves security for `list` operations.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects user profile data, allowing only the owner to read and write.
+     * @description Enforces access control for user profiles. Only the authenticated user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (get, update, delete) User A with uid "userA" can read, update, and delete their own profile at /users/userA.
-     * @allow (create) User A with uid "userA" can create their profile at /users/userA.
-     * @deny (get, update, delete) User B with uid "userB" cannot read, update, or delete User A's profile at /users/userA.
-     * @deny (create) User B with uid "userB" cannot create a profile at /users/userA.
-     * @principle Enforces document ownership for all operations on user profiles.
+     * @allow (create) User with UID 'user_abc' can create their own profile.
+     * @allow (get, update, delete) User with UID 'user_abc' can read/write their own profile.
+     * @deny (create, get, update, delete) User with UID 'user_xyz' cannot access profile 'user_abc'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      // Helper function to check if the request is made by the owner.
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
 
-      // Helper function to check if the request is made by the existing owner of the document.
       function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+          return isOwner(userId);
       }
-      // Allow the user to read their own document.
+
       allow get: if isOwner(userId);
-
-      // Disallow listing of user documents.
-      allow list: if false;
-
-      // Allow the user to create their own document, enforcing userId consistency.
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-
-      // Allow the user to update their own document, enforcing userId immutability.
-      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-
-      // Allow the user to delete their own document.
+      allow list: if false; // User listing is not allowed.
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == request.auth.uid;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to trading signals. Allows public read access but restricts writes to authenticated users.
-     * @path /signals/{signalId}
-     * @allow (get, list) Any user can read a signal at /signals/{signalId}.
-     * @allow (create) User A with uid "userA" can create a signal at /signals/{signalId} if request.resource.data.ownerId == "userA".
-     * @allow (update, delete) User A with uid "userA" can update/delete their own signal at /signals/{signalId} if resource.data.ownerId == "userA".
-     * @deny (create, update, delete) Unauthenticated users cannot create, update, or delete signals.
-     * @principle Allows public read access to signals, but enforces owner-only writes for data integrity.
+     * @description Controls admin role assignment. Only an admin can create/delete admin role assignments.
+     *              Read access is allowed for all authenticated users.
+     * @path /roles_admin/{userId}
+     * @allow (create, delete) Admin can create/delete admin roles.
+     * @allow (get) Authenticated user can check if a user is an admin.
+     * @deny (create, delete) Non-admin cannot assign admin roles.
+     * @principle Enforces role-based access control for admin privileges.
      */
-    match /signals/{signalId} {
-        // Allow public read access.
-        allow get, list: if true;
+    match /roles_admin/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-        function isSignedIn() {
-            return request.auth != null;
-        }
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
 
-        function isOwner(ownerId) {
-            return request.auth.uid == ownerId;
-        }
+      allow get: if isSignedIn();
+      allow list: if false; // Admin role listing is not allowed.
 
-        // Helper function to check if the request is made by the existing owner of the document.
-        function isExistingOwner(ownerId) {
-          return isOwner(ownerId) && resource != null;
-        }
-
-        // Allow authenticated users to create signals, but require the ownerId field.
-        allow create: if isSignedIn() && request.resource.data.id == signalId; //CRITICAL : add ownerID condition when schema updated
-
-        // Allow owners to update signals.
-        allow update: if isSignedIn() && isExistingOwner(resource.data.id);
-
-        // Allow owners to delete signals.
-        allow delete: if isSignedIn() && isExistingOwner(resource.data.id);
+      allow create: if isAdmin();
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Controls access to upgrade requests. Allows public read access but restricts writes to authenticated users.
-     * @path /upgrade_requests/{requestId}
-     * @allow (get, list) Any user can read an upgrade request at /upgrade_requests/{requestId}.
-     * @allow (create) User A with uid "userA" can create an upgrade request at /upgrade_requests/{requestId}.
-     * @deny (create) Unauthenticated users cannot create upgrade requests.
-     * @deny (update, delete) Upgrade requests cannot be updated or deleted.
-     * @principle Allows public read access to upgrade requests, but requires authentication for creation.
+     * @description Allows public read access to free signals, but restricts creation, updates, and deletion to admins only.
+     * @path /signals_free/{signalId}
+     * @allow (get, list) All users can read free signals.
+     * @allow (create, update, delete) Only admins can modify free signals.
+     * @deny (create, update, delete) Non-admins cannot modify free signals.
+     * @principle Allows public read access with restricted write access based on role.
      */
-    match /upgrade_requests/{requestId} {
-      // Allow public read access.
-      allow get, list: if true;
-
+    match /signals_free/{signalId} {
       function isSignedIn() {
-          return request.auth != null;
+        return request.auth != null;
       }
 
-      // Allow authenticated users to create upgrade requests.
-      allow create: if isSignedIn();
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
 
-      // Disallow updates and deletes.
-      allow update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Restricts access to pro signals to pro users and admins only.
+     * @path /signals_pro/{signalId}
+     * @allow (get, list) Pro users and admins can read pro signals.
+     * @allow (create, update, delete) Only admins can create/modify pro signals.
+     * @deny (get, list) Free users cannot read pro signals.
+     * @deny (create, update, delete) Non-admins cannot modify pro signals.
+     * @principle Enforces role-based access control for premium content.
+     */
+    match /signals_pro/{signalId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
+      function isProUser() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'pro';
+      }
+
+      allow get: if isSignedIn() && (isAdmin() || isProUser());
+      allow list: if isSignedIn() && (isAdmin() || isProUser());
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
