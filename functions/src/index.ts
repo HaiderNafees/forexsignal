@@ -12,18 +12,20 @@ export const setUserRoleOnCreate = functions.firestore
     const userData = snap.data();
     const { uid } = context.params;
 
-    // Automatically assign 'admin' role to the specified email
+    // Automatically assign 'admin' role and verify email for the specified admin user
     if (userData.email === "forexsignaldmn@gmail.com") {
       try {
+        // Set role via custom claims
         await admin.auth().setCustomUserClaims(uid, { role: "admin" });
+        // Update role in Firestore document for consistency
         await snap.ref.update({ role: "admin" });
-        // Mark email as verified for the admin user
+        // Mark email as verified on the backend
         await admin.auth().updateUser(uid, { emailVerified: true });
         console.log(`Admin role and email verification set for ${uid}`);
       } catch (error) {
         console.error(`Error setting admin role for ${uid}:`, error);
       }
-      return;
+      return; // Stop execution for the admin user
     }
     
     // For all other users, default to 'free' role
