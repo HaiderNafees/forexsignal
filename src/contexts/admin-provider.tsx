@@ -9,8 +9,9 @@ import type { User } from '@/lib/types';
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// This context is only for the admin panel
 type AdminContextType = {
     user: User | null;
     loading: boolean;
@@ -22,11 +23,12 @@ type AdminContextType = {
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-    const { user, loading, db } = useAuth(); // We get the base user and db connection from the main AuthProvider
+    const { user, loading: authLoading, db } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [adminLoading, setAdminLoading] = useState(true);
     const { toast } = useToast();
     const [functions, setFunctions] = useState<Functions | null>(null);
+    const router = useRouter();
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -36,12 +38,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (loading) {
+        if (authLoading) {
             setAdminLoading(true);
             return;
         }
+
+        // If auth has loaded but there's no user, or the user is not an admin, redirect.
         if (!user || user.role !== 'admin') {
-            // No need to fetch admin data if not an admin
+            router.replace('/dashboard');
+            return;
+        }
+
+        // At this point, user is confirmed to be an admin. Proceed with fetching admin data.
+        if (!db) {
             setAdminLoading(false);
             return;
         }
@@ -65,7 +74,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             unsubscribeUsers();
         };
 
-    }, [user, loading, db, toast]);
+    }, [user, authLoading, db, toast, router]);
 
     const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
         if (!functions) {
@@ -75,7 +84,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         try {
             const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
             await setUserRoleFunc({ uid: userId, role: role });
-            setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, role } : u));
+            // The onSnapshot listener will update the state automatically.
             toast({
                 title: 'User Role Updated',
                 description: `User role has been successfully changed to ${role}.`,
@@ -112,10 +121,28 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             });
         }
     }, [toast, functions]);
+    
+    const loading = authLoading || adminLoading;
 
+    if (loading) {
+       return (
+          <div className="p-8">
+            <div className="space-y-4">
+              <Skeleton className="h-12 w-1/4" />
+              <Skeleton className="h-8 w-1/2" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Skeleton className="h-40" />
+                <Skeleton className="h-40" />
+                <Skeleton className="h-40" />
+              </div>
+            </div>
+          </div>
+        );
+    }
+    
     const value = {
         user,
-        loading: loading || adminLoading,
+        loading,
         users,
         updateUserRole,
         deleteUser,

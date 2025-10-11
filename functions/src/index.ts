@@ -13,7 +13,7 @@ export const setUserRoleOnCreate = functions.firestore
     const { uid } = context.params;
 
     // Automatically assign 'admin' role and verify email for the specified admin user
-    if (userData.email === "forexsignaldmn@gmail.com") {
+    if (userData.email === "admin@forexsignal.com") {
       try {
         // Set role via custom claims
         await admin.auth().setCustomUserClaims(uid, { role: "admin" });

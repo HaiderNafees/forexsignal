@@ -11,7 +11,6 @@ import type { User, Signal } from '@/lib/types';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
@@ -29,13 +28,11 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let functions: Functions;
 
 if (typeof window !== 'undefined') {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);
-  functions = getFunctions(app);
 }
 
 type AuthContextType = {
@@ -54,7 +51,6 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const protectedRoutes = ['/dashboard', '/admin'];
-const adminRoutes = ['/admin'];
 const publicRoutes = ['/login', '/signup'];
 
 export function AuthProvider({ children }: { children: React.ReactNode; }) {
@@ -71,35 +67,28 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 try {
-                    const idTokenResult = await fbUser.getIdTokenResult(true); // Force refresh
-                    const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
-                    
                     const userDocRef = doc(db, 'users', fbUser.uid);
                     const userSnap = await getDoc(userDocRef);
 
-                    let userData: User;
-
                     if (userSnap.exists()) {
-                         userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
+                         const idTokenResult = await fbUser.getIdTokenResult(true);
+                         const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
+                         setUser({ uid: userSnap.id, ...userSnap.data(), role } as User);
                     } else {
-                        // This handles a newly signed-up user.
-                        // The `setUserRoleOnCreate` function will create the doc, but we need to create the user profile
-                        // on the client as well for immediate UI needs and to avoid permission errors.
-                        userData = {
+                         const newUser: User = {
                              uid: fbUser.uid,
                              email: fbUser.email!,
-                             role: role, // Role from custom claim
+                             role: 'free',
                              createdAt: new Date().toISOString(),
-                        };
-                        // Non-blocking write to create user profile
-                         setDoc(userDocRef, {
+                         };
+                         setUser(newUser);
+                         await setDoc(userDocRef, {
                             uid: fbUser.uid,
                             email: fbUser.email,
-                            role: 'free', // Default role on creation
+                            role: 'free', 
                             createdAt: serverTimestamp()
-                        }).catch(e => console.error("Error creating user document:", e));
+                         });
                     }
-                    setUser(userData);
                 } catch (err: any) {
                      console.error("Error during auth state change:", err);
                     setUser(null);
@@ -118,42 +107,23 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         if (loading) return;
 
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-        const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-
-        // If not logged in and trying to access a protected route, redirect to login
+        
         if (!user && isProtectedRoute) {
             router.replace('/login');
             return;
         }
 
-        // If logged in, handle redirects based on role
-        if (user) {
-            const isPublicAuthRoute = pathname === '/login' || pathname === '/signup';
-
-            // If user is admin
-            if (user.role === 'admin') {
-                if (!isAdminRoute) {
-                    router.replace('/admin'); // Force redirect to admin if not already there
-                }
-            } else { // If user is not admin (pro or free)
-                if (isAdminRoute) {
-                    router.replace('/dashboard'); // If they try to access admin, kick them to dashboard
-                } else if (isPublicAuthRoute) {
-                    router.replace('/dashboard'); // If they are on login/signup, move them to dashboard
-                }
-            }
+        if (user && publicRoutes.includes(pathname)) {
+            router.replace('/dashboard');
         }
+
     }, [user, loading, pathname, router]);
 
     useEffect(() => {
-        if (!user || !db) {
-            setSignals([]);
-            return;
-        };
+        if (!db) return;
         
         const freeSignalsQuery = query(collection(db, 'signals_free'), orderBy('createdAt', 'desc'));
-        const proSignalsQuery = query(collection(db, 'signals_pro'), orderBy('createdAt', 'desc'));
-
+        
         const unsubFree = onSnapshot(freeSignalsQuery, 
             (snapshot) => {
                 const freeSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
@@ -169,7 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         );
 
         let unsubPro = () => {};
-        if (user.role === 'admin' || user.role === 'pro') {
+        if (user && (user.role === 'admin' || user.role === 'pro')) {
+            const proSignalsQuery = query(collection(db, 'signals_pro'), orderBy('createdAt', 'desc'));
             unsubPro = onSnapshot(proSignalsQuery,
                 (snapshot) => {
                     const proSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
@@ -184,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 }
             );
         } else {
+            // Ensure pro signals are cleared if user is not pro/admin
             setSignals(prev => prev.filter(s => s.status !== 'premium'));
         }
 
@@ -191,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             unsubFree();
             unsubPro();
         };
-    }, [user, toast]);
+    }, [user, toast, db]);
 
   const logout = useCallback(async () => {
     try {
@@ -207,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
+    if (!db) return;
     const collectionName = signalData.status === 'premium' ? 'signals_pro' : 'signals_free';
     const signalsCollection = collection(db, collectionName);
     const newSignalData = { ...signalData, createdAt: serverTimestamp() };
@@ -230,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
+    if (!db) return;
     const { id, status, ...signalData } = signal;
     const collectionName = status === 'premium' ? 'signals_pro' : 'signals_free';
     const signalRef = doc(db, collectionName, id);
@@ -252,6 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   }, [toast, db]);
   
   const deleteSignal = useCallback(async (signalId: string, status: 'free' | 'premium') => {
+    if (!db) return;
     const collectionName = status === 'premium' ? 'signals_pro' : 'signals_free';
     const signalRef = doc(db, collectionName, signalId);
     deleteDoc(signalRef)
@@ -288,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         if (signal) {
             return deleteSignal(signalId, signal.status);
         }
+        toast({ variant: 'destructive', title: "Delete Failed", description: "Signal not found to determine its status." });
         return Promise.resolve();
     },
     auth,
