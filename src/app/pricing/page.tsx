@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Check, X, Minus } from "lucide-react";
+import { Check, X, Clipboard, Copy } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
+import Image from "next/image";
+import { useState } from "react";
 
 const tiers = [
   {
@@ -74,7 +76,7 @@ const pricingFaqs = [
     },
     {
         question: "What payment methods do you accept?",
-        answer: "For this prototype, we simulate a bank transfer. In a real-world scenario, we would accept all major credit cards, PayPal, and other popular payment methods."
+        answer: "We currently accept USDT (TRC-20) for Pro plan subscriptions. More payment options may be added in the future."
     },
     {
         question: "How do I cancel my subscription?",
@@ -86,10 +88,18 @@ const pricingFaqs = [
     }
 ]
 
-export default function PricingPage() {
+function UpgradeDialogContent() {
     const { user, db } = useAuth();
     const { toast } = useToast();
-    const router = useRouter();
+    const usdtAddress = "TBYKKvjy7KxexKA4jCn4F9cie88wUDtgUL";
+    const [isCopied, setIsCopied] = useState(false);
+
+    const handleCopyToClipboard = () => {
+        navigator.clipboard.writeText(usdtAddress);
+        setIsCopied(true);
+        toast({ title: "Address Copied!" });
+        setTimeout(() => setIsCopied(false), 2000);
+    };
 
     const handleRequestUpgrade = async () => {
         if (!user || !db) return;
@@ -125,10 +135,50 @@ export default function PricingPage() {
                 }
             });
     };
-    
+
+    return (
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Complete Your Upgrade</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                    <div className="space-y-4 text-sm text-foreground pt-2">
+                        <div>To upgrade to the Pro plan for $29/month, please send the equivalent amount of USDT to the TRC-20 address below.</div>
+                        
+                        <div className="flex justify-center py-4">
+                             <Image 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${usdtAddress}`}
+                                alt="USDT Wallet QR Code"
+                                width={150}
+                                height={150}
+                            />
+                        </div>
+
+                        <div className="p-3 rounded-md border bg-muted break-all relative">
+                            <div className="font-mono text-xs">{usdtAddress}</div>
+                            <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-7 w-7" onClick={handleCopyToClipboard}>
+                                {isCopied ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                        <div className="text-xs text-muted-foreground">After making the payment, click the button below. An admin will verify the transaction and approve your upgrade.</div>
+                    </div>
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRequestUpgrade}>I Have Made The Payment</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    )
+
+}
+
+export default function PricingPage() {
+    const { user } = useAuth();
+    const router = useRouter();
+
     const handleGoProClick = () => {
         if (!user) {
-            router.push('/signup');
+            router.push('/signup?redirect=/pricing');
         }
     }
 
@@ -168,34 +218,14 @@ export default function PricingPage() {
                  {tier.name === 'Pro' ? (
                    user && user.role === 'pro' ? (
                       <Button className="w-full" variant={tier.variant as any} disabled>
-                          You are already a Pro
+                          You are a Pro Member
                       </Button>
-                   ) : user && user.role === 'free' ? (
+                   ) : user ? (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button className="w-full" variant={tier.variant as any}>Go Pro</Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Complete Your Upgrade</AlertDialogTitle>
-                           <AlertDialogDescription asChild>
-                            <div className="space-y-4 text-sm text-foreground pt-2">
-                                <div>To upgrade to the Pro plan for $29/month, please make a payment to the following account:</div>
-                                <div className="p-4 rounded-md border bg-muted">
-                                    <div><span className="font-semibold">Bank:</span> Global Trading Bank</div>
-                                    <div><span className="font-semibold">Account Name:</span> ForexEdge Inc.</div>
-                                    <div><span className="font-semibold">Account Number:</span> 1234567890</div>
-                                    <div><span className="font-semibold">Reference:</span> {user.email}</div>
-                                </div>
-                                <div className="text-xs text-muted-foreground">After making the payment, click the button below. An admin will verify and approve your request.</div>
-                            </div>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleRequestUpgrade}>I Have Made The Payment</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
+                      <UpgradeDialogContent />
                     </AlertDialog>
                   ) : (
                      <Button onClick={handleGoProClick} className="w-full" variant={tier.variant as any}>
@@ -203,8 +233,8 @@ export default function PricingPage() {
                       </Button>
                   )
                 ) : (
-                  <Button asChild className="w-full" variant={tier.variant as any}>
-                    <Link href={tier.href}>{tier.cta}</Link>
+                  <Button asChild className="w-full" variant={tier.variant as any} disabled={!!user}>
+                    <Link href={tier.href}>{user ? "You are on the Free Plan" : tier.cta}</Link>
                   </Button>
                 )}
               </CardFooter>

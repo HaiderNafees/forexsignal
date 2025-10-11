@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Name must be at least 2 characters."}),
@@ -30,6 +30,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { auth } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -45,6 +46,8 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      if (!auth) throw new Error("Authentication service is not available.");
+
       // Create user with Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -62,8 +65,8 @@ export default function SignupPage() {
         description: "A verification email has been sent. Please verify your email, then log in.",
       });
 
-      // The AuthProvider will handle profile creation and redirection
-      router.push("/login");
+      const redirectUrl = searchParams.get('redirect') || '/login';
+      router.push(redirectUrl);
 
     } catch (error: any) {
         toast({
