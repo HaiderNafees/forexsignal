@@ -50,7 +50,7 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const protectedRoutes = ['/dashboard', '/admin'];
+const protectedRoutes = ['/dashboard']; // Admin routes are handled separately
 const publicRoutes = ['/login', '/signup'];
 
 export function AuthProvider({ children }: { children: React.ReactNode; }) {
@@ -67,12 +67,13 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             setFirebaseUser(fbUser);
             if (fbUser) {
                 try {
+                    const idTokenResult = await fbUser.getIdTokenResult(true); // Force token refresh
+                    const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
+                    
                     const userDocRef = doc(db, 'users', fbUser.uid);
                     const userSnap = await getDoc(userDocRef);
 
                     if (userSnap.exists()) {
-                         const idTokenResult = await fbUser.getIdTokenResult(true);
-                         const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
                          setUser({ uid: userSnap.id, ...userSnap.data(), role } as User);
                     } else {
                          const newUser: User = {
@@ -105,16 +106,26 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
     useEffect(() => {
         if (loading) return;
-
-        const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
         
-        if (!user && isProtectedRoute) {
-            router.replace('/login');
-            return;
-        }
+        const isAdminRoute = pathname.startsWith('/admin');
 
-        if (user && publicRoutes.includes(pathname)) {
-            router.replace('/dashboard');
+        if (user) {
+             if (user.role === 'admin' && !isAdminRoute) {
+                router.replace('/admin');
+                return;
+            }
+             if (user.role !== 'admin' && isAdminRoute) {
+                router.replace('/dashboard');
+                return;
+            }
+            if (publicRoutes.includes(pathname)) {
+                router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
+            }
+        } else {
+            const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route)) || isAdminRoute;
+            if (isProtectedRoute) {
+                 router.replace('/login');
+            }
         }
 
     }, [user, loading, pathname, router]);
@@ -276,3 +287,5 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     </AuthContext.Provider>
   );
 }
+
+    
