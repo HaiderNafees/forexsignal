@@ -46,7 +46,7 @@ const tiers = [
     name: "Pro",
     price: "$29",
     priceFrequency: "/ month",
-    description: "Unlock the full power of ForexEdge for serious traders aiming for consistent results.",
+    description: "Unlock the full power of Trader Choice for serious traders aiming for consistent results.",
     features: [
       "Unlimited access to all signals",
       "Advanced real-time analytics & insights",
@@ -286,5 +286,3 @@ export default function PricingPage() {
     </div>
   );
 }
-
-    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -79,7 +80,7 @@ export default function SignupPage() {
             <Logo />
           </Link>
           <CardTitle className="font-headline text-2xl">Create an Account</CardTitle>
-          <CardDescription>Join ForexEdge and start trading smarter today.</CardDescription>
+          <CardDescription>Join Trader Choice and start trading smarter today.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

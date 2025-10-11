@@ -1,3 +1,4 @@
+
 import {
   Accordion,
   AccordionContent,
@@ -7,8 +8,8 @@ import {
 
 const faqs = [
     {
-        question: "What is ForexEdge?",
-        answer: "ForexEdge is a platform that provides high-quality forex trading signals, market analysis, and educational content to help traders of all levels make more informed decisions."
+        question: "What is Trader Choice?",
+        answer: "Trader Choice is a platform that provides high-quality forex trading signals, market analysis, and educational content to help traders of all levels make more informed decisions."
     },
     {
         question: "How are the signals generated?",

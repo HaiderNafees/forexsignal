@@ -58,7 +58,7 @@ export default function FeaturesPage() {
         <header className="text-center mb-16">
           <h1 className="font-headline text-4xl md:text-5xl font-bold">Everything You Need to Succeed</h1>
           <p className="text-muted-foreground mt-3 max-w-2xl mx-auto">
-            ForexEdge is more than just signals. It's a complete toolkit designed to give you a competitive edge in the forex market.
+            Trader Choice is more than just signals. It's a complete toolkit designed to give you a competitive edge in the forex market.
           </p>
         </header>
 

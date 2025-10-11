@@ -14,7 +14,7 @@ export default function AboutPage() {
     <div className="bg-background pt-24">
       <div className="container mx-auto px-4 md:px-6 py-16">
         <header className="text-center mb-12">
-          <h1 className="font-headline text-4xl md:text-5xl font-bold">About ForexEdge</h1>
+          <h1 className="font-headline text-4xl md:text-5xl font-bold">About Trader Choice</h1>
           <p className="text-muted-foreground mt-3 max-w-3xl mx-auto">
             We are on a mission to democratize forex trading by providing transparent, data-driven signals and powerful analytical tools to everyday traders.
           </p>
@@ -38,7 +38,7 @@ export default function AboutPage() {
                 <div>
                     <h2 className="font-headline text-3xl font-bold mb-4">Our Story & Mission</h2>
                     <p className="text-muted-foreground mb-4">
-                        Founded by a team of veteran traders and fintech specialists, ForexEdge was born out of a shared frustration: the best trading tools were reserved for the financial elite. We decided to change that. Our mission is to level the playing field by combining institutional-grade analytics with a user-friendly platform, making profitable trading accessible to everyone.
+                        Founded by a team of veteran traders and fintech specialists, Trader Choice was born out of a shared frustration: the best trading tools were reserved for the financial elite. We decided to change that. Our mission is to level the playing field by combining institutional-grade analytics with a user-friendly platform, making profitable trading accessible to everyone.
                     </p>
                     <p className="text-muted-foreground">
                         We are relentlessly committed to transparency, accuracy, and the long-term success of our members. Your journey in the markets is our priority, and we're here to provide the support and technology you need to thrive.

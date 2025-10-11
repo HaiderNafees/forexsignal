@@ -8,8 +8,11 @@ import { Footer } from '@/components/layout/footer';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
-  title: 'ForexEdge | Premium Forex Signals & Analytics',
+  title: 'Trader Choice | Premium Forex Signals & Analytics',
   description: 'Gain your edge with professional-grade forex signals, live data, and powerful analytics.',
+  icons: {
+    icon: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='15' fill='%230ea5e9' /><text x='50' y='55' font-size='50' fill='white' text-anchor='middle' dominant-baseline='middle' font-family='sans-serif' font-weight='bold'>TC</text></svg>`,
+  },
 };
 
 export default function RootLayout({

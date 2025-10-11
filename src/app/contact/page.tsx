@@ -72,14 +72,14 @@ export default function ContactPage() {
                         <Mail className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                         <div>
                             <h3 className="font-semibold">General Inquiries</h3>
-                            <p className="text-muted-foreground hover:text-primary transition-colors cursor-pointer">support@forexedge.com</p>
+                            <p className="text-muted-foreground hover:text-primary transition-colors cursor-pointer">support@traderchoice.com</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">
                         <LifeBuoy className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                         <div>
                             <h3 className="font-semibold">Technical Support</h3>
-                            <p className="text-muted-foreground hover:text-primary transition-colors cursor-pointer">tech@forexedge.com</p>
+                            <p className="text-muted-foreground hover:text-primary transition-colors cursor-pointer">tech@traderchoice.com</p>
                         </div>
                     </div>
                      <div className="flex items-start gap-4">

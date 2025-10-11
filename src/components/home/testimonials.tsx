@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -10,13 +11,13 @@ const testimonials = [
     id: "avatar-1",
     name: "John D.",
     role: "Pro Trader",
-    quote: "ForexEdge has been a game-changer for my trading strategy. The signals are incredibly accurate, and the analytics help me see the market with so much more clarity.",
+    quote: "Trader Choice has been a game-changer for my trading strategy. The signals are incredibly accurate, and the analytics help me see the market with so much more clarity.",
   },
   {
     id: "avatar-2",
     name: "Sarah L.",
     role: "Part-Time Trader",
-    quote: "As someone who can't watch the charts all day, ForexEdge is perfect. I get reliable signals and can execute trades with confidence. The Pro plan is worth every penny.",
+    quote: "As someone who can't watch the charts all day, Trader Choice is perfect. I get reliable signals and can execute trades with confidence. The Pro plan is worth every penny.",
   },
   {
     id: "avatar-3",

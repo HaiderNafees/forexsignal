@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
@@ -23,7 +24,7 @@ export function Hero() {
       <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white px-4">
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 max-w-4xl">
           <h1 className="font-headline text-5xl font-bold tracking-tight md:text-7xl lg:text-8xl">
-            Trade Smarter with <span className="text-primary">ForexEdge</span>
+            Trade Smarter with <span className="text-primary">Trader Choice</span>
           </h1>
           <p className="mt-6 mx-auto max-w-3xl text-lg text-gray-300 md:text-xl">
             Unlock your trading potential with professional-grade signals, real-time market data, and powerful analytics. Your journey to consistent profitability in the forex market starts right here.

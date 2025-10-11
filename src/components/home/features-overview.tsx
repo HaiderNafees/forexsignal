@@ -1,3 +1,4 @@
+
 import { BarChart2, Zap, Users, ShieldCheck } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -30,10 +31,10 @@ export function FeaturesOverview() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-12">
           <h2 className="font-headline text-4xl md:text-5xl font-bold">
-            A Better Way to Trade Forex
+            A Better Way to Trade
           </h2>
           <p className="mt-3 max-w-2xl mx-auto text-lg text-muted-foreground">
-            We built ForexEdge to eliminate guesswork and empower you with the tools and insights needed to navigate the markets with confidence.
+            We built Trader Choice to eliminate guesswork and empower you with the tools and insights needed to navigate the markets with confidence.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

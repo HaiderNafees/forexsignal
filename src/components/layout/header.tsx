@@ -71,7 +71,7 @@ export function Header() {
   return (
     <header className={headerClasses}>
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
-        <Link href="/" aria-label="ForexEdge Home">
+        <Link href="/" aria-label="Trader Choice Home">
           <Logo className={logoClasses} />
         </Link>
         <nav className="hidden items-center gap-6 md:flex">
@@ -111,7 +111,7 @@ export function Header() {
               <SheetContent side="right" className="w-full max-w-sm bg-card">
                 <div className="flex flex-col h-full">
                   <div className="flex justify-between items-center border-b pb-4">
-                    <Link href="/" aria-label="ForexEdge Home">
+                    <Link href="/" aria-label="Trader Choice Home">
                         <Logo />
                     </Link>
                     <SheetClose asChild>

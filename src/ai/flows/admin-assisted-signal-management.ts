@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -35,7 +36,7 @@ const adminAssistedSignalManagementPrompt = ai.definePrompt({
   name: 'adminAssistedSignalManagementPrompt',
   input: {schema: AdminAssistedSignalManagementInputSchema},
   output: {schema: AdminAssistedSignalManagementOutputSchema},
-  prompt: `You are an AI assistant helping a ForexEdge administrator manage signals.
+  prompt: `You are an AI assistant helping a Trader Choice administrator manage signals.
 
 You will either suggest new signals based on provided market trends or summarize the potential impact of existing signals on different user groups.
 

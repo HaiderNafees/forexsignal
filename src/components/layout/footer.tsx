@@ -1,3 +1,4 @@
+
 import { Logo } from "@/components/logo";
 import { Twitter, Facebook, Instagram } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +22,7 @@ export function Footer() {
       <div className="container mx-auto px-4 md:px-6">
         <div className="flex flex-col md:flex-row items-center justify-between py-6">
             <div className="mb-4 md:mb-0">
-                <Link href="/" aria-label="ForexEdge Home">
+                <Link href="/" aria-label="Trader Choice Home">
                     <Logo />
                 </Link>
             </div>
@@ -42,7 +43,7 @@ export function Footer() {
             </div>
         </div>
         <div className="border-t py-4 text-center text-xs text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} ForexEdge Inc. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Trader Choice Inc. All rights reserved.</p>
         </div>
       </div>
     </footer>

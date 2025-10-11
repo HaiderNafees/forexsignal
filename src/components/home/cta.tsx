@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -10,7 +11,7 @@ export function Cta() {
           Ready to Elevate Your Trading?
         </h2>
         <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
-          Join thousands of traders who are getting their edge with ForexEdge. Sign up now and start your journey to smarter trading today.
+          Join thousands of traders who are getting their edge with Trader Choice. Sign up now and start your journey to smarter trading today.
         </p>
         <div className="mt-8">
           <Button size="lg" asChild>
