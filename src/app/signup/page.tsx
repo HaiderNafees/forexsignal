@@ -6,8 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import {
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -49,20 +48,15 @@ export default function SignupPage() {
       if (!auth) throw new Error("Authentication service is not available.");
 
       // Create user with Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(
+      await createUserWithEmailAndPassword(
         auth,
         values.email,
         values.password
       );
-
-      const user = userCredential.user;
-
-      // Send email verification
-      await sendEmailVerification(user);
       
       toast({
         title: "Account Created!",
-        description: "A verification email has been sent. Please verify your email, then log in.",
+        description: "You can now log in.",
       });
 
       const redirectUrl = searchParams.get('redirect') || '/login';

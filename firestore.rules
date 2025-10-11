@@ -1,113 +1,128 @@
 /**
- * @file Firestore Security Rules for ForexEdge Application
- * @description This ruleset enforces a role-based access control model, primarily distinguishing between 'free', 'pro', and 'admin' users. It uses structural segregation to isolate free and pro signals into separate collections, and employs ownership checks for user profiles.
- * @dataStructure
- *   - /users/{userId}: Stores user profiles, with 'userId' matching the authenticated user's UID.
- *   - /roles_admin/{userId}: Presence of a document grants admin privileges to the corresponding user.
- *   - /signals_free/{signalId}: Contains signals accessible to all users.
- *   - /signals_pro/{signalId}: Contains signals accessible only to 'pro' users.
- * @keySecurityDecisions
- *   - User listing is disallowed to protect user privacy.
- *   - Admin privileges are granted based on the existence of a document in `/roles_admin/{userId}`.
- *   - Public read access is granted to `/signals_free/{signalId}`.
- * @denormalizationForAuthorization
- *   - The user's role is stored directly within the user document in `/users/{userId}` to simplify authorization checks without additional reads.
+ * @fileoverview Firestore Security Rules for ForexEdge application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and role-based access control for signals. Only authenticated users can access the application.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information, accessible only to the user themselves.
+ * - /signals_free/{signalId}: Stores free signals, publicly readable but only writable by authorized users (e.g., admins - not yet defined).
+ * - /signals_pro/{signalId}: Stores premium signals, only accessible to 'pro' and 'admin' users.
+ * - /upgrade_requests/{requestId}: Stores user upgrade requests, writable by any authenticated user.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed.
+ * - Public read access is granted to the signals_free collection.
+ * - The default security posture for ambiguous relationships is strict owner-only access.
+ * - No validation will be performed beyond authorization checks.
+ *
+ * Denormalization for Authorization:
+ *  N/A - Current rules do not require denormalization
+ *
+ * Structural Segregation:
+ * Free and pro signals are stored in separate collections to simplify access control.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-level access control for user profiles.
-     * @path /users/{userId}
-     * @allow (get) Signed-in user can read their own profile.
-     * @allow (create) Signed-in user can create their own profile.
-     * @allow (update) Signed-in user can update their own profile.
-     * @deny (get) Signed-in user cannot read other user profiles.
-     * @deny (create) Signed-in user cannot create profile with mismatched userId.
-     * @deny (update) Signed-in user cannot update other user profiles.
-     * @principle Enforces document ownership for reads and writes.
+     * @description Controls access to user profile documents.
+     * @path /databases/{database}/documents/users/{userId}
+     * @allow (get) Authenticated user can read their own profile.
+     * @allow (create) Authenticated user can create their own profile, matching their UID.
+     * @allow (update) Authenticated user can update their own profile.
+     * @allow (delete) Authenticated user can delete their own profile.
+     * @deny (get) Authenticated user cannot read another user's profile.
+     * @deny (create) Authenticated user cannot create a profile with a mismatched UID.
+     * @deny (update) Authenticated user cannot update another user's profile.
+     * @deny (delete) Authenticated user cannot delete another user's profile.
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      // Signed-in users only
       allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if false;
+      allow list: if false; // User listing is not allowed
+
+      // Creating the user document requires the user to be signed in and the uid to match the document id
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid == resource.data.uid; // Enforce immutability of uid
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to admin roles. The presence of a document in this collection grants admin rights.
-     * @path /roles_admin/{userId}
-     * @allow (get) Admin can check if a user is an admin.
-     * @allow (create) Only an admin can grant admin role to a user.
-     * @allow (delete) Only an admin can revoke admin role from a user.
-     * @deny (get) Non-admin user cannot check admin status.
-     * @deny (create) Non-admin user cannot grant admin role.
-     * @deny (delete) Non-admin user cannot revoke admin role.
-     * @principle Enforces role-based access control for granting admin privileges.
-     */
-    match /roles_admin/{userId} {
-        function isAdmin() {
-            return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-        }
-        function isSignedIn() {
-            return request.auth != null;
-        }
-        allow get: if isSignedIn() && isAdmin();
-        allow list: if false;
-        allow create: if isSignedIn() && isAdmin();
-        allow update: if false;
-        allow delete: if isSignedIn() && isAdmin();
-    }
-
-    /**
-     * @description Allows public read access to free signals, with no write access.
-     * @path /signals_free/{signalId}
-     * @allow (get) All users can read free signals.
-     * @allow (list) All users can list free signals.
-     * @deny (create) No one can create free signals through client-side rules.
-     * @deny (update) No one can update free signals through client-side rules.
-     * @deny (delete) No one can delete free signals through client-side rules.
-     * @principle Allows public read access while restricting write access.
+     * @description Controls access to free forex signals.
+     * @path /databases/{database}/documents/signals_free/{signalId}
+     * @allow (get) Any user can read free signals.
+     * @allow (list) Any user can list free signals.
+     * @allow (create) Only authenticated users can create free signals.
+     * @allow (update) Only authenticated users can update free signals.
+     * @allow (delete) Only authenticated users can delete free signals.
+     * @deny (create) Non-authenticated users cannot create free signals.
+     * @deny (update) Non-authenticated users cannot update free signals.
+     * @deny (delete) Non-authenticated users cannot delete free signals.
+     * @principle Public read access with owner-only writes.
      */
     match /signals_free/{signalId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
+      allow get, list: if true; // Public read access
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Signal' entity is missing an 'ownerId' or 'authorId' field.
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+
+    /**
+     * @description Controls access to pro forex signals.
+     * @path /databases/{database}/documents/signals_pro/{signalId}
+     * @allow (get) Only 'pro' and 'admin' users can read pro signals.
+     * @allow (list) Only 'pro' and 'admin' users can list pro signals.
+     * @allow (create) Only 'admin' users can create pro signals.
+     * @allow (update) Only 'admin' users can update pro signals.
+     * @allow (delete) Only 'admin' users can delete pro signals.
+     * @deny (get) Non-'pro' or non-'admin' users cannot read pro signals.
+     * @deny (list) Non-'pro' or non-'admin' users cannot list pro signals.
+     * @deny (create) Non-'admin' users cannot create pro signals.
+     * @deny (update) Non-'admin' users cannot update pro signals.
+     * @deny (delete) Non-'admin' users cannot delete pro signals.
+     * @principle Role-based access control.
+     */
+    match /signals_pro/{signalId} {
+      allow get, list: if isSignedIn() && (hasRole(['pro', 'admin']));
+      // CRITICAL: Cannot implement owner-only writes. The 'Signal' entity is missing an 'ownerId' or 'authorId' field.
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+
+      /**
+       * @description Controls access to upgrade requests.
+       * @path /databases/{database}/documents/upgrade_requests/{upgradeRequestId}
+       * @allow (create) Authenticated users can create upgrade requests.
+       * @deny (get) No one can get a single upgrade request.
+       * @deny (list) No one can list upgrade requests.
+       * @deny (update) No one can update upgrade requests.
+       * @deny (delete) No one can delete upgrade requests.
+       * @principle Authenticated users can create upgrade requests.
+       */
+    match /upgrade_requests/{upgradeRequestId} {
+      allow get, list: if false;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if false;
       allow delete: if false;
     }
+  }
 
-    /**
-     * @description Restricts access to pro signals to 'pro' users only.
-     * @path /signals_pro/{signalId}
-     * @allow (get) Pro users can read pro signals.
-     * @allow (list) Pro users can list pro signals.
-     * @deny (get) Non-pro users cannot read pro signals.
-     * @deny (create) No one can create pro signals through client-side rules.
-     * @deny (update) No one can update pro signals through client-side rules.
-     * @deny (delete) No one can delete pro signals through client-side rules.
-     * @principle Enforces role-based access control for premium content.
-     */
-    match /signals_pro/{signalId} {
-        function isPro() {
-            return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'pro';
-        }
-        function isSignedIn() {
-            return request.auth != null;
-        }
-        allow get: if isSignedIn() && isPro();
-        allow list: if isSignedIn() && isPro();
-        allow create: if false;
-        allow update: if false;
-        allow delete: if false;
-    }
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
+  }
+
+  function hasRole(roles) {
+    return isSignedIn() && request.auth.token.role in roles;
   }
 }
