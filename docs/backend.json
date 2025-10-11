@@ -6,9 +6,9 @@
       "type": "object",
       "description": "Represents a user of the ForexEdge application.",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string",
-          "description": "Unique identifier for the user entity."
+          "description": "Unique identifier for the user, matching Firebase Auth UID."
         },
         "email": {
           "type": "string",
@@ -17,7 +17,8 @@
         },
         "role": {
           "type": "string",
-          "description": "The user's role within the application (e.g., free, pro, admin)."
+          "description": "The user's role within the application (e.g., free, pro, admin).",
+          "enum": ["free", "pro", "admin"]
         },
         "createdAt": {
           "type": "string",
@@ -26,7 +27,7 @@
         }
       },
       "required": [
-        "id",
+        "uid",
         "email",
         "role",
         "createdAt"
@@ -46,102 +47,81 @@
           "type": "string",
           "description": "The title of the signal."
         },
-        "description": {
-          "type": "string",
-          "description": "A detailed description of the signal."
+        "pair": {
+            "type": "string",
+            "description": "The currency pair for the signal (e.g. 'XAU/USD')."
         },
-        "date": {
-          "type": "string",
-          "description": "The date when the signal was generated.",
-          "format": "date-time"
+        "action": {
+            "type": "string",
+            "enum": ["BUY", "SELL"]
         },
+        "entry": {"type": "number"},
+        "stopLoss": {"type": "number"},
+        "takeProfit": {"type": "number"},
         "status": {
           "type": "string",
-          "description": "The status of the signal (e.g., free, premium)."
+          "description": "The status of the signal (e.g., free, premium).",
+          "enum": ["free", "premium"]
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time"
         }
       },
       "required": [
         "id",
         "title",
-        "description",
-        "date",
-        "status"
+        "pair",
+        "action",
+        "entry",
+        "stopLoss",
+        "takeProfit",
+        "status",
+        "createdAt"
       ]
+    },
+    "UpgradeRequest": {
+        "title": "UpgradeRequest",
+        "type": "object",
+        "description": "Represents a user's request to upgrade their account.",
+        "properties": {
+            "uid": {"type": "string"},
+            "email": {"type": "string", "format": "email"},
+            "requestedAt": {"type": "string", "format": "date-time"}
+        },
+        "required": ["uid", "email", "requestedAt"]
     }
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
-    ]
+      "password"
+    ],
+    "customClaims": {
+        "role": {
+            "type": "string",
+            "enum": ["free", "pro", "admin"]
+        }
+    }
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
+      "rules": "firestore.rules",
+      "collections": {
+          "users": {
+              "schema": {"$ref": "#/entities/User"},
+              "description": "Stores user profile information, keyed by Firebase Auth UID."
           },
-          "description": "Stores user profiles. The 'userId' is derived from Firebase Authentication.  Includes standard user information (email, role, createdAt).",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, obtained from Firebase Authentication."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "adminRole",
-          "schema": {
-            "$ref": "#/backend/entities/User"
+          "signals_free": {
+              "schema": {"$ref": "#/entities/Signal"},
+              "description": "Stores free forex signals accessible to all authenticated users."
           },
-          "description": "Indicates that the user with the corresponding 'userId' has administrator privileges. Existence of a document grants admin rights.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user who is an administrator."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/signals_free/{signalId}",
-        "definition": {
-          "entityName": "Signal",
-          "schema": {
-            "$ref": "#/backend/entities/Signal"
+          "signals_pro": {
+              "schema": {"$ref": "#/entities/Signal"},
+              "description": "Stores premium forex signals accessible only to 'pro' and 'admin' users."
           },
-          "description": "Stores free signals, accessible (with limitations) to all users.",
-          "params": [
-            {
-              "name": "signalId",
-              "description": "The unique identifier for the free signal."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/signals_pro/{signalId}",
-        "definition": {
-          "entityName": "Signal",
-          "schema": {
-            "$ref": "#/backend/entities/Signal"
-          },
-          "description": "Stores pro signals, accessible only to pro users.",
-          "params": [
-            {
-              "name": "signalId",
-              "description": "The unique identifier for the pro signal."
-            }
-          ]
-        }
+          "upgrade_requests": {
+              "schema": {"$ref": "#/entities/UpgradeRequest"},
+              "description": "Stores user requests to upgrade to the Pro plan for admin review."
+          }
       }
-    ],
-    "reasoning": "This Firestore data structure is designed to support the ForexEdge application, focusing on secure user authentication, role-based access control, and efficient data management for forex signals. The structure prioritizes authorization independence by avoiding hierarchical authorization dependencies and denormalizing the user's role where necessary. Structural segregation is employed by using separate collections for users and signals, and different types of signal based on the user's role (free or pro).\n\nThe key collections are:\n\n*   `/users/{userId}`: Stores user profiles.  The `userId` is derived from Firebase Authentication.\n*   `/roles_admin/{userId}`: Documents in this collections indicate that the user is an administrator.\n*   `/signals_free/{signalId}`: Stores free signals, accessible (with limitations) to all users.\n*   `/signals_pro/{signalId}`: Stores pro signals, accessible only to pro users.\n\nThis structure supports the QAPs:\n\n*   **Authorization Independence:** By storing the user's role directly in the user document, and segregating the signals into free/pro collections, we avoid the need for `get()` calls to parent documents to determine access rights.  This ensures that atomic operations (transactions/batches) are not broken and debugging is simplified.\n*   **Rules are not Filters:**  The separation of signals into `signals_free` and `signals_pro` collections allows for secure `list` operations.  Rules can simply check if a user is 'pro' and then allow access to the `signals_pro` collection without filtering.\n\nThis design facilitates simple, robust, and easily debuggable security rules."
   }
 }
