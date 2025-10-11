@@ -8,9 +8,44 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { UserNav } from '@/components/auth/user-nav';
 import { Logo } from '@/components/logo';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, DollarSign } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { usePathname } from 'next/navigation';
+import { getUsdtPrice } from '@/ai/flows/get-usdt-price';
+
+function UsdtPriceTicker() {
+    const [price, setPrice] = useState<number | null>(null);
+
+    useEffect(() => {
+        async function fetchPrice() {
+            try {
+                const result = await getUsdtPrice();
+                setPrice(result.price);
+            } catch (error) {
+                console.error("Failed to fetch USDT price", error);
+                setPrice(1.00); // fallback
+            }
+        }
+        fetchPrice();
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchPrice, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const priceColor = price === 1.00 ? 'text-gray-400' : price! > 1.00 ? 'text-green-500' : 'text-red-500';
+
+    return (
+        <div className="flex items-center gap-2 text-sm font-semibold">
+            <DollarSign className="h-4 w-4 text-green-400" />
+            <span className="text-gray-400">USDT:</span>
+            {price !== null ? (
+                <span className={priceColor}>${price.toFixed(4)}</span>
+            ) : (
+                <span className="w-16 h-4 bg-muted/50 animate-pulse rounded-md" />
+            )}
+        </div>
+    );
+}
 
 export function Header() {
   const { user, loading } = useAuth();
@@ -80,7 +115,10 @@ export function Header() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className={cn(isScrolled || !isHomePage ? "text-foreground" : "text-white", "hidden lg:flex")}>
+            <UsdtPriceTicker />
+          </div>
           <div className="hidden md:flex items-center gap-2">
             {loading ? (
               <div className="h-8 w-20 animate-pulse rounded-md bg-muted/50" />
