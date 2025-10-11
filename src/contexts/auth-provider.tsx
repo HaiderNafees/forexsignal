@@ -73,44 +73,36 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
             setFirebaseUser(fbUser);
             if (fbUser) {
-                const userRef = doc(db, 'users', fbUser.uid);
                 try {
+                    const idTokenResult = await fbUser.getIdTokenResult(true); // Force refresh
+                    const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
+                    
+                    const userRef = doc(db, 'users', fbUser.uid);
                     const userSnap = await getDoc(userRef);
+
                     if (userSnap.exists()) {
-                        const userData = { uid: userSnap.id, ...userSnap.data() } as User;
+                        const userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
                         setUser(userData);
                     } else {
                         // This is a new user, create their profile document
-                        console.log("New user detected, creating profile...");
-                        const newUserProfile: Omit<User, 'uid' | 'createdAt'> & { createdAt: any } = {
+                        const newUserProfile = {
+                            uid: fbUser.uid,
                             email: fbUser.email!,
                             role: 'free', // Default role
+                            createdAt: serverTimestamp(),
                         };
                         
                         const userDocRef = doc(db, 'users', fbUser.uid);
-                        await setDoc(userDocRef, {
-                            ...newUserProfile,
-                            createdAt: serverTimestamp(),
+                        await setDoc(userDocRef, newUserProfile);
+                        setUser({
+                             uid: fbUser.uid,
+                             email: fbUser.email!,
+                             role: 'free',
+                             createdAt: new Date().toISOString(),
                         });
-
-                        const freshlyCreatedUser = await getDoc(userDocRef);
-                        if (freshlyCreatedUser.exists()) {
-                             setUser({ uid: freshlyCreatedUser.id, ...freshlyCreatedUser.data() } as User);
-                        }
                     }
                 } catch (err: any) {
-                     if (err.code === 'unavailable' || err.code === 'permission-denied') {
-                        console.warn("Could not fetch user profile:", err.message);
-                        if (err.code === 'permission-denied') {
-                             const permissionError = new FirestorePermissionError({
-                                path: userRef.path,
-                                operation: 'get',
-                            });
-                            errorEmitter.emit('permission-error', permissionError);
-                        }
-                    } else {
-                        console.error("Failed to fetch user document:", err);
-                    }
+                     console.error("Error during auth state change:", err);
                     setUser(null);
                     await signOut(auth);
                 }
@@ -160,7 +152,6 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             return;
         };
         
-        // Admins should see all signals, free/pro users see free signals
         const freeSignalsQuery = query(collection(db, 'signals_free'), orderBy('createdAt', 'desc'));
         const proSignalsQuery = query(collection(db, 'signals_pro'), orderBy('createdAt', 'desc'));
 
@@ -239,8 +230,12 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
  const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
     try {
-        const setUserRole = httpsCallable(functions, 'setUserRole');
-        await setUserRole({ uid: userId, role: role });
+        const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
+        await setUserRoleFunc({ uid: userId, role: role });
+
+        // Update local state immediately for better UX
+        setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, role } : u));
+        
         toast({
             title: 'User Role Updated',
             description: `User role has been successfully changed to ${role}.`,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -47,7 +46,7 @@ export default function SignupPage() {
     try {
       if (!auth) throw new Error("Authentication service is not available.");
 
-      // Create user with Firebase Authentication
+      // Create user with Firebase Authentication. The AuthProvider will handle profile creation.
       await createUserWithEmailAndPassword(
         auth,
         values.email,
@@ -56,11 +55,10 @@ export default function SignupPage() {
       
       toast({
         title: "Account Created!",
-        description: "You can now log in.",
+        description: "Redirecting to your dashboard...",
       });
 
-      const redirectUrl = searchParams.get('redirect') || '/login';
-      router.push(redirectUrl);
+      // AuthProvider will handle the redirection after auth state is confirmed.
 
     } catch (error: any) {
         toast({

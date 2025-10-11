@@ -1,10 +1,51 @@
-
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
 const db = admin.firestore();
+
+export const setUserRoleOnCreate = functions.firestore
+  .document("users/{uid}")
+  .onCreate(async (snap, context) => {
+    const userData = snap.data();
+    const uid = context.params.uid;
+    const role = userData.role || "free"; // Default to 'free'
+
+    try {
+      // Set custom claim
+      await admin.auth().setCustomUserClaims(uid, { role });
+      console.log(`Custom claim set for ${uid}: role=${role}`);
+      return null;
+    } catch (error) {
+      console.error(`Error setting custom claim for ${uid}:`, error);
+      return null;
+    }
+  });
+
+
+export const setUserRoleOnUpdate = functions.firestore
+  .document("users/{uid}")
+  .onUpdate(async (change, context) => {
+    const newValue = change.after.data();
+    const previousValue = change.before.data();
+    const uid = context.params.uid;
+
+    // Check if the role has changed
+    if (newValue.role !== previousValue.role) {
+       try {
+        // Set custom claim
+        await admin.auth().setCustomUserClaims(uid, { role: newValue.role });
+        console.log(`Custom claim updated for ${uid}: role=${newValue.role}`);
+        return null;
+       } catch (error) {
+        console.error(`Error updating custom claim for ${uid}:`, error);
+        return null;
+       }
+    }
+    return null;
+  });
+
 
 export const setUserRole = functions.https.onCall(async (data, context) => {
   // Check if the user is an admin.
@@ -25,10 +66,8 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    // Set custom claim for the user
-    await admin.auth().setCustomUserClaims(uid, { role });
-
-    // Update the role in the Firestore user document
+    // Update the role in the Firestore user document. This will trigger the onUpdate function
+    // to set the custom claim.
     await db.collection("users").doc(uid).update({ role });
 
     return { message: `Success! User ${uid} has been made a ${role}.` };
