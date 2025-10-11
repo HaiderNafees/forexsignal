@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, User as UserIcon, Shield, Crown } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAdmin } from "@/contexts/admin-provider";
 
 const roleIcons = {
   free: <UserIcon className="h-4 w-4 text-muted-foreground" />,
@@ -30,7 +31,7 @@ const roleIcons = {
 };
 
 export function UserManagement() {
-  const { users, updateUserRole, deleteUser } = useAuth();
+  const { users, updateUserRole, deleteUser } = useAdmin();
   
   return (
     <div className="space-y-4">

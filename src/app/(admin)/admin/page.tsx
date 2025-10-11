@@ -1,16 +1,17 @@
-"use client";
+
+'use client';
 
 import React from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAdmin } from '@/contexts/admin-provider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdminTabs } from '@/components/admin/admin-tabs';
 
 export default function AdminPage() {
-  const { user, loading } = useAuth();
-  
+  const { user, loading } = useAdmin();
+
   if (loading || !user) {
     return (
-      <div className="container mx-auto py-10 px-4 pt-24">
+      <div className="p-8">
         <div className="space-y-4">
           <Skeleton className="h-12 w-1/4" />
           <Skeleton className="h-8 w-1/2" />
@@ -25,16 +26,14 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-card pt-24">
-        <div className="container mx-auto px-4 md:px-6 py-8">
-            <header className="mb-8">
-            <h1 className="font-headline text-4xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground mt-2">
-                Welcome, {user.email}. Manage the platform from here.
-            </p>
-            </header>
-            <AdminTabs />
-        </div>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <header className="mb-8">
+        <h1 className="font-headline text-4xl font-bold">Admin Dashboard</h1>
+        <p className="text-muted-foreground mt-2">
+          Welcome, {user.email}. Manage the platform from here.
+        </p>
+      </header>
+      <AdminTabs />
     </div>
   );
 }

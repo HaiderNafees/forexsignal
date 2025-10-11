@@ -8,16 +8,12 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import type { getAuth } from "firebase/auth";
 import type { getFirestore } from "firebase/firestore";
 
-
 type AuthContextType = {
   user: User | null;
   firebaseUser: FirebaseUser | null;
-  users: User[];
   signals: Signal[];
   loading: boolean;
   logout: () => void;
-  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => void;
-  deleteUser: (userId: string) => void;
   addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
   updateSignal: (signal: Signal) => Promise<void>;
   deleteSignal: (signalId: string) => Promise<void>;
@@ -33,5 +29,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-    

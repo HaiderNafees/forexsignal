@@ -1,6 +1,8 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useAdmin } from "@/contexts/admin-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
 import {
@@ -18,7 +20,8 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
 
 export function UpgradeRequests() {
-  const { db, updateUserRole } = useAuth();
+  const { db } = useAuth();
+  const { updateUserRole } = useAdmin();
   const [requests, setRequests] = useState<UpgradeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();

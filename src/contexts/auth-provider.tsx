@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
@@ -41,12 +41,9 @@ if (typeof window !== 'undefined') {
 type AuthContextType = {
   user: User | null;
   firebaseUser: FirebaseUser | null;
-  users: User[];
   signals: Signal[];
   loading: boolean;
   logout: () => void;
-  updateUserRole: (userId: string, role: 'free' | 'pro' | 'admin') => Promise<void>;
-  deleteUser: (userId: string) => Promise<void>;
   addSignal: (signal: Omit<Signal, 'id' | 'createdAt'>) => Promise<void>;
   updateSignal: (signal: Signal) => Promise<void>;
   deleteSignal: (signalId: string) => Promise<void>;
@@ -57,12 +54,12 @@ type AuthContextType = {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const protectedRoutes = ['/dashboard', '/admin'];
+const adminRoutes = ['/admin'];
 const publicRoutes = ['/login', '/signup'];
 
 export function AuthProvider({ children }: { children: React.ReactNode; }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -77,23 +74,24 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     const idTokenResult = await fbUser.getIdTokenResult(true); // Force refresh
                     const role = (idTokenResult.claims.role as 'free' | 'pro' | 'admin') || 'free';
                     
-                    const userRef = doc(db, 'users', fbUser.uid);
-                    const userSnap = await getDoc(userRef);
+                    const userDocRef = doc(db, 'users', fbUser.uid);
+                    const userSnap = await getDoc(userDocRef);
+
+                    let userData: User;
 
                     if (userSnap.exists()) {
-                        const userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
-                        setUser(userData);
+                         userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
                     } else {
                         // This case handles a newly signed-up user whose profile is not yet created.
-                        // The `setUserRoleOnCreate` cloud function will create it. 
-                        // We set a temporary user object here.
-                        setUser({
+                        userData = {
                              uid: fbUser.uid,
                              email: fbUser.email!,
-                             role: 'free',
+                             role: role,
                              createdAt: new Date().toISOString(),
-                        });
+                        };
+                         // The `setUserRoleOnCreate` cloud function will create it, but we have it here for immediate UI needs.
                     }
+                    setUser(userData);
                 } catch (err: any) {
                      console.error("Error during auth state change:", err);
                     setUser(null);
@@ -113,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
         const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+        const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
 
         if (!user && isProtectedRoute) {
             router.replace('/login');
@@ -126,12 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 return;
             }
 
-            if (user.role === 'admin' && !pathname.startsWith('/admin')) {
+            if (user.role === 'admin' && !isAdminRoute) {
                 router.replace('/admin');
                 return;
             }
 
-            if (user.role !== 'admin' && pathname.startsWith('/admin')) {
+            if (user.role !== 'admin' && isAdminRoute) {
                 router.replace('/dashboard');
                 return;
             }
@@ -141,7 +140,6 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     useEffect(() => {
         if (!user || !db) {
             setSignals([]);
-            setUsers([]);
             return;
         };
         
@@ -181,31 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             setSignals(prev => prev.filter(s => s.status !== 'premium'));
         }
 
-        let unsubscribeUsers = () => {};
-        if (user.role === 'admin') {
-            const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-            unsubscribeUsers = onSnapshot(usersQuery, 
-                (snapshot) => {
-                    const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                    setUsers(usersData);
-                }, 
-                (error) => {
-                    if (error.code === 'permission-denied') {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'users').path, operation: 'list' }));
-                    } else {
-                        console.error("User listener error:", error);
-                        toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
-                    }
-                }
-            );
-        } else {
-            setUsers([]); 
-        }
-
         return () => {
             unsubFree();
             unsubPro();
-            unsubscribeUsers();
         };
     }, [user, toast]);
 
@@ -221,46 +197,6 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     }
   }, [router, toast]);
 
- const updateUserRole = useCallback(async (userId: string, role: 'free' | 'pro' | 'admin') => {
-    try {
-        const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
-        await setUserRoleFunc({ uid: userId, role: role });
-
-        // Update local state immediately for better UX
-        setUsers(prevUsers => prevUsers.map(u => u.uid === userId ? { ...u, role } : u));
-        
-        toast({
-            title: 'User Role Updated',
-            description: `User role has been successfully changed to ${role}.`,
-        });
-    } catch (error: any) {
-        console.error("Error updating user role:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Update Failed',
-            description: error.message || 'Could not update user role via function.',
-        });
-    }
-  }, [toast, functions]);
-
-  const deleteUser = useCallback(async (userId: string) => {
-    try {
-      const deleteUserFunc = httpsCallable(functions, 'deleteUser');
-      await deleteUserFunc({ uid: userId });
-      toast({
-        variant: 'destructive',
-        title: 'User Deleted',
-        description: 'The user has been successfully deleted.',
-      });
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Deletion Failed',
-        description: error.message || 'Could not delete the user.',
-      });
-    }
-  }, [toast, functions]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
     const collectionName = signalData.status === 'premium' ? 'signals_pro' : 'signals_free';
@@ -334,12 +270,9 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   const contextValue = {
     user,
     firebaseUser,
-    users,
     signals,
     loading,
     logout,
-    updateUserRole,
-    deleteUser,
     addSignal,
     updateSignal,
     deleteSignal: (signalId: string) => {
@@ -359,5 +292,3 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     </AuthContext.Provider>
   );
 }
-
-    
