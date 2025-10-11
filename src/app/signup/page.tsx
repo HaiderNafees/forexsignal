@@ -46,6 +46,8 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
+    let user; // Declare user here to be accessible in the catch block
+
     try {
       // Create user with Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
@@ -54,7 +56,7 @@ export default function SignupPage() {
         values.password
       );
 
-      const user = userCredential.user;
+      user = userCredential.user;
 
       // Store user profile information in Firestore
       const userDocRef = doc(db, 'users', user.uid);
@@ -81,11 +83,18 @@ export default function SignupPage() {
 
     } catch (error: any) {
        if (error.code === 'permission-denied') {
-            const userDocRef = doc(db, 'users', error.request?.resource?.name?.split('/').pop() || 'unknown-uid');
+            const userId = user?.uid || 'unknown-uid';
+            const userDocRef = doc(db, 'users', userId);
+            const userProfileData = {
+                fullName: values.fullName,
+                email: values.email,
+                role: 'free',
+            };
+
             const permissionError = new FirestorePermissionError({
                 path: userDocRef.path,
                 operation: 'create',
-                requestResourceData: {email: values.email, role: 'free'},
+                requestResourceData: userProfileData,
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
         } else {
@@ -169,5 +178,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    
