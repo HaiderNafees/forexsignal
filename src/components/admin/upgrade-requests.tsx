@@ -1,10 +1,10 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useAdmin } from "@/contexts/admin-provider";
 import { useAuth } from "@/hooks/use-auth";
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc } from "firebase/firestore";
 import {
   Table,
   TableBody,
@@ -21,30 +21,8 @@ import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/e
 
 export function UpgradeRequests() {
   const { db } = useAuth();
-  const { updateUserRole } = useAdmin();
-  const [requests, setRequests] = useState<UpgradeRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { upgradeRequests, loading, updateUserRole } = useAdmin();
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (!db) return;
-    const q = query(collection(db, "upgrade_requests"), orderBy("requestedAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpgradeRequest));
-      setRequests(requestsData);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching upgrade requests:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not fetch upgrade requests.",
-      });
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [db, toast]);
 
   const handleApprove = async (request: UpgradeRequest) => {
     // First, update the user's role to 'pro'
@@ -117,12 +95,12 @@ export function UpgradeRequests() {
               <TableRow>
                 <TableCell colSpan={3} className="text-center">Loading requests...</TableCell>
               </TableRow>
-            ) : requests.length === 0 ? (
+            ) : upgradeRequests.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={3} className="text-center">No pending upgrade requests.</TableCell>
               </TableRow>
             ) : (
-              requests.map((request) => (
+              upgradeRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">{request.email}</TableCell>
                   <TableCell>{request.requestedAt?.toDate ? new Date(request.requestedAt.toDate()).toLocaleString() : 'N/A'}</TableCell>
