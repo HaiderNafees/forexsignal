@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -12,13 +13,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -74,9 +74,9 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
     return (
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{signal ? 'Edit Signal' : 'Create Signal'}</DialogTitle>
+            <DialogTitle>Edit Signal</DialogTitle>
             <DialogDescription>
-              {signal ? 'Update the details for this signal.' : 'Fill in the details for the new signal.'}
+              Update the details for this signal.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -134,15 +134,13 @@ function SignalForm({ signal, onSave, onOpenChange }: { signal?: Signal | null, 
 }
 
 export function SignalManagement() {
-  const { signals, addSignal, updateSignal, deleteSignal } = useAuth();
+  const { signals, updateSignal } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [selectedSignal, setSelectedSignal] = React.useState<Signal | null>(null);
 
   const handleSaveSignal = (signal: Omit<Signal, 'id' | 'createdAt'> | Signal) => {
     if ('id' in signal) {
         updateSignal(signal);
-    } else {
-        addSignal(signal);
     }
     setIsDialogOpen(false);
     setSelectedSignal(null);
@@ -153,30 +151,19 @@ export function SignalManagement() {
     setIsDialogOpen(true);
   }
 
-  const openCreateDialog = () => {
-    setSelectedSignal(null);
-    setIsDialogOpen(true);
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium">Signal Management</h3>
-          <p className="text-sm text-muted-foreground">
-            Create, update, and manage all forex signals.
-          </p>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex justify-between items-center">
+            <div>
+            <h3 className="text-lg font-medium">Signal Management</h3>
+            <p className="text-sm text-muted-foreground">
+                Update and manage all forex signals.
+            </p>
+            </div>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={openCreateDialog}>
-                    <PlusCircle className="mr-2 h-4 w-4"/>
-                    Create Signal
-                </Button>
-            </DialogTrigger>
-            <SignalForm signal={selectedSignal} onSave={handleSaveSignal} onOpenChange={setIsDialogOpen} />
-        </Dialog>
-      </div>
+        <SignalForm signal={selectedSignal} onSave={handleSaveSignal} onOpenChange={setIsDialogOpen} />
+      </Dialog>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -216,8 +203,6 @@ export function SignalManagement() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => openEditDialog(signal)}>Edit</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => deleteSignal(signal.id)} className="text-destructive">Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

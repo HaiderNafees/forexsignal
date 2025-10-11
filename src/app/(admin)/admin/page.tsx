@@ -4,7 +4,7 @@
 import React from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AdminTabs } from '@/components/admin/admin-tabs';
+import { SignalManagement } from '@/components/admin/signal-management';
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -30,10 +30,10 @@ export default function AdminPage() {
       <header className="mb-8">
         <h1 className="font-headline text-4xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-2">
-          Welcome, {user.email}. Manage the platform from here.
+          Welcome, {user.email}. Manage and edit signals from here.
         </p>
       </header>
-      <AdminTabs />
+      <SignalManagement />
     </div>
   );
 }

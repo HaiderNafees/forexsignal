@@ -9,11 +9,10 @@ import {
   SidebarMenuButton,
   SidebarContent,
   SidebarFooter,
-  SidebarMenuBadge,
   SidebarGroup,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
-import { Users, Bot, Signal, ArrowUpCircle, LogOut } from 'lucide-react';
+import { Signal, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { UserNav } from '../auth/user-nav';
 
@@ -32,27 +31,8 @@ export function AdminSidebar() {
           <SidebarGroup>
             <SidebarMenuItem>
               <SidebarMenuButton href="/admin" isActive>
-                <Users />
-                Users
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton href="/admin">
                 <Signal />
                 Signals
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-             <SidebarMenuItem>
-              <SidebarMenuButton href="/admin">
-                <ArrowUpCircle />
-                Upgrades
-                <SidebarMenuBadge>3</SidebarMenuBadge>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-             <SidebarMenuItem>
-              <SidebarMenuButton href="/admin">
-                <Bot />
-                AI Assistant
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarGroup>
