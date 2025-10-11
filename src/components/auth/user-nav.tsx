@@ -52,8 +52,11 @@ export function UserNav() {
   };
 
   const handleDashboardClick = () => {
-    const path = user.role === 'admin' ? '/admin' : '/dashboard';
-    router.push(path);
+    if (user.role === 'admin') {
+      window.open('/admin', '_blank');
+    } else {
+      router.push('/dashboard');
+    }
   }
 
   return (
