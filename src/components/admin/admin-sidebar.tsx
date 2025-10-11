@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -32,7 +31,7 @@ export function AdminSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton href="/admin" isActive>
                 <Signal />
-                Signals
+                Signal Management
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarGroup>
