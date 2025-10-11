@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Signal } from "@/lib/types";
@@ -101,3 +102,5 @@ export default function SignalsPage() {
     </section>
   );
 }
+
+    

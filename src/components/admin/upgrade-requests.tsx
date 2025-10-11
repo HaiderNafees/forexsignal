@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -24,6 +25,7 @@ export function UpgradeRequests() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!db) return;
     const q = query(collection(db, "upgrade_requests"), orderBy("requestedAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpgradeRequest));
@@ -47,6 +49,7 @@ export function UpgradeRequests() {
     await updateUserRole(request.uid, 'pro');
     
     // After successfully updating the role, delete the request document
+    if (!db) return;
     const requestRef = doc(db, 'upgrade_requests', request.id);
     deleteDoc(requestRef).catch(async (serverError) => {
        if (serverError.code === 'permission-denied') {
@@ -66,6 +69,7 @@ export function UpgradeRequests() {
   };
 
   const handleDeny = (requestId: string) => {
+    if (!db) return;
     const requestRef = doc(db, 'upgrade_requests', requestId);
     deleteDoc(requestRef).then(() => {
       toast({
@@ -119,7 +123,7 @@ export function UpgradeRequests() {
               requests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">{request.email}</TableCell>
-                  <TableCell>{new Date(request.requestedAt?.toDate()).toLocaleString()}</TableCell>
+                  <TableCell>{request.requestedAt?.toDate ? new Date(request.requestedAt.toDate()).toLocaleString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
                     <Button onClick={() => handleApprove(request)} size="sm" className="mr-2">Approve</Button>
                     <Button onClick={() => handleDeny(request.id)} size="sm" variant="destructive">Deny</Button>
@@ -133,3 +137,5 @@ export function UpgradeRequests() {
     </div>
   );
 }
+
+    

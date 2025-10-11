@@ -2,7 +2,7 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -153,7 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             return;
         };
         
-        const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+        const signalsCollection = user.role === 'admin' ? collection(db, 'signals_pro') : collection(db, 'signals_free');
+        const signalsQuery = query(signalsCollection, orderBy('createdAt', 'desc'));
+
         const unsubscribeSignals = onSnapshot(signalsQuery, 
             (snapshot) => {
                 const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
@@ -162,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             async (error) => {
                 if (error.code === 'permission-denied') {
                     const permissionError = new FirestorePermissionError({
-                        path: collection(db, 'signals').path,
+                        path: signalsCollection.path,
                         operation: 'list',
                     });
                     errorEmitter.emit('permission-error', permissionError);
@@ -232,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             description: error.message || 'Could not update user role via function.',
         });
     }
-  }, [toast]);
+  }, [toast, functions]);
 
   const deleteUser = useCallback(async (userId: string) => {
     const userRef = doc(db, 'users', userId);
@@ -258,7 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
-    const signalsCollection = collection(db, 'signals');
+    const signalsCollection = collection(db, signalData.status === 'premium' ? 'signals_pro' : 'signals_free');
     const newSignalData = { ...signalData, createdAt: serverTimestamp() };
     addDoc(signalsCollection, newSignalData)
         .then(() => {
@@ -276,12 +278,12 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 toast({ variant: 'destructive', title: "Creation Failed", description: "Could not create the new signal." });
             }
         });
-  }, [toast]);
+  }, [toast, db]);
 
 
   const updateSignal = useCallback(async (signal: Signal) => {
-    const { id, ...signalData } = signal;
-    const signalRef = doc(db, 'signals', id);
+    const { id, status, ...signalData } = signal;
+    const signalRef = doc(db, status === 'premium' ? 'signals_pro' : 'signals_free', id);
     updateDoc(signalRef, { ...signalData })
         .then(() => {
             toast({ title: "Signal Updated", description: "The signal has been updated successfully." });
@@ -298,10 +300,10 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 toast({ variant: 'destructive', title: "Update Failed", description: "Could not update the signal." });
             }
         });
-  }, [toast]);
+  }, [toast, db]);
   
-  const deleteSignal = useCallback(async (signalId: string) => {
-    const signalRef = doc(db, 'signals', signalId);
+  const deleteSignal = useCallback(async (signalId: string, status: 'free' | 'premium') => {
+    const signalRef = doc(db, status === 'premium' ? 'signals_pro' : 'signals_free', signalId);
     deleteDoc(signalRef)
         .then(() => {
             toast({
@@ -321,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                  toast({ variant: 'destructive', title: "Delete Failed", description: "Could not delete the signal." });
             }
         });
-  }, [toast]);
+  }, [toast, db]);
 
   const contextValue = {
     user,
@@ -334,7 +336,13 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     deleteUser,
     addSignal,
     updateSignal,
-    deleteSignal,
+    deleteSignal: (signalId: string) => {
+        const signal = signals.find(s => s.id === signalId);
+        if (signal) {
+            return deleteSignal(signalId, signal.status);
+        }
+        return Promise.resolve();
+    },
     auth,
     db,
   };
@@ -345,3 +353,5 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     </AuthContext.Provider>
   );
 }
+
+    
