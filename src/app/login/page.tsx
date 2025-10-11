@@ -27,7 +27,7 @@ const formSchema = z.object({
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const { auth, loading: authLoading } = useAuth();
+  const { auth, firebaseUser, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,13 +40,15 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      // Force a token refresh to get the latest custom claims.
+      await userCredential.user.getIdToken(true);
       
       toast({
         title: "Login Successful",
         description: "Redirecting to your dashboard...",
       });
-      // The AuthProvider will now handle redirection automatically.
+      // The AuthProvider will now handle redirection automatically with the refreshed claims.
 
     } catch (error: any) {
       toast({
@@ -131,5 +133,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

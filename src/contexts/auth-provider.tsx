@@ -76,10 +76,13 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     if (userSnap.exists()) {
                          setUser({ uid: userSnap.id, ...userSnap.data(), role } as User);
                     } else {
+                         // This case handles a new sign-up. The Cloud Function will assign the role.
+                         // We can create a temporary user object here, or wait for the Firestore listener.
+                         // For now, let's create the doc if it doesn't exist to ensure consistency.
                          const newUser: User = {
                              uid: fbUser.uid,
                              email: fbUser.email!,
-                             role: 'free',
+                             role: role, // Use the role from the token, which should be 'free' initially for new users
                              createdAt: new Date().toISOString(),
                          };
                          setUser(newUser);
@@ -287,5 +290,3 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     </AuthContext.Provider>
   );
 }
-
-    
