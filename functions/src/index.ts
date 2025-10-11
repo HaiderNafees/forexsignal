@@ -28,11 +28,16 @@ export const setUserRoleOnCreate = functions.firestore
       return; // Stop execution for the admin user
     }
     
-    // For all other users, default to 'free' role
-    const role = userData.role || "free";
+    // For all other users, explicitly default to 'free' role
+    const role = "free";
 
     try {
+      // Set custom claim
       await admin.auth().setCustomUserClaims(uid, { role });
+      // Update Firestore document if it doesn't match
+      if (userData.role !== role) {
+          await snap.ref.update({ role });
+      }
       console.log(`Custom claim set for ${uid}: role=${role}`);
     } catch (error) {
       console.error(`Error setting custom claim for ${uid}:`, error);
