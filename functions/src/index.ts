@@ -1,3 +1,4 @@
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
@@ -9,17 +10,30 @@ export const setUserRoleOnCreate = functions.firestore
   .document("users/{uid}")
   .onCreate(async (snap, context) => {
     const userData = snap.data();
-    const uid = context.params.uid;
-    const role = userData.role || "free"; // Default to 'free'
+    const { uid } = context.params;
+
+    // Automatically assign 'admin' role to the specified email
+    if (userData.email === "forexsignaldmn@gmail.com") {
+      try {
+        await admin.auth().setCustomUserClaims(uid, { role: "admin" });
+        await snap.ref.update({ role: "admin" });
+        // Mark email as verified for the admin user
+        await admin.auth().updateUser(uid, { emailVerified: true });
+        console.log(`Admin role and email verification set for ${uid}`);
+      } catch (error) {
+        console.error(`Error setting admin role for ${uid}:`, error);
+      }
+      return;
+    }
+    
+    // For all other users, default to 'free' role
+    const role = userData.role || "free";
 
     try {
-      // Set custom claim
       await admin.auth().setCustomUserClaims(uid, { role });
       console.log(`Custom claim set for ${uid}: role=${role}`);
-      return null;
     } catch (error) {
       console.error(`Error setting custom claim for ${uid}:`, error);
-      return null;
     }
   });
 
@@ -29,7 +43,7 @@ export const setUserRoleOnUpdate = functions.firestore
   .onUpdate(async (change, context) => {
     const newValue = change.after.data();
     const previousValue = change.before.data();
-    const uid = context.params.uid;
+    const { uid } = context.params;
 
     // Check if the role has changed
     if (newValue.role !== previousValue.role) {
@@ -37,13 +51,10 @@ export const setUserRoleOnUpdate = functions.firestore
         // Set custom claim
         await admin.auth().setCustomUserClaims(uid, { role: newValue.role });
         console.log(`Custom claim updated for ${uid}: role=${newValue.role}`);
-        return null;
        } catch (error) {
         console.error(`Error updating custom claim for ${uid}:`, error);
-        return null;
        }
     }
-    return null;
   });
 
 
