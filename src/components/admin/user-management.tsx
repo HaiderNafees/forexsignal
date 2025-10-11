@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal, User as UserIcon, Shield, Crown } from "lucide-react";
-import { useAdmin } from "@/contexts/admin-provider";
+import { useAuth } from "@/hooks/use-auth";
 
 const roleIcons = {
   free: <UserIcon className="h-4 w-4 text-muted-foreground" />,
@@ -31,7 +31,7 @@ const roleIcons = {
 };
 
 export function UserManagement() {
-  const { users, updateUserRole, deleteUser } = useAdmin();
+  const { allUsers, updateUserRole, deleteUser } = useAuth();
   
   return (
     <div className="space-y-4">
@@ -54,7 +54,7 @@ export function UserManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => (
+            {allUsers.map((user) => (
               <TableRow key={user.uid}>
                 <TableCell className="font-medium">{user.email}</TableCell>
                 <TableCell>

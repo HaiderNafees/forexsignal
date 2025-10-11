@@ -2,12 +2,12 @@
 'use client';
 
 import React from 'react';
-import { useAdmin } from '@/contexts/admin-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AdminTabs } from '@/components/admin/admin-tabs';
 
 export default function AdminPage() {
-  const { user, loading } = useAdmin();
+  const { user, loading } = useAuth();
 
   if (loading || !user) {
     return (

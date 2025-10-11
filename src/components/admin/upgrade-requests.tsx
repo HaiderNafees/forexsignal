@@ -2,7 +2,6 @@
 "use client";
 
 import React from "react";
-import { useAdmin } from "@/contexts/admin-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { doc, deleteDoc } from "firebase/firestore";
 import {
@@ -20,8 +19,7 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
 
 export function UpgradeRequests() {
-  const { db } = useAuth();
-  const { upgradeRequests, loading, updateUserRole } = useAdmin();
+  const { db, loading, upgradeRequests, updateUserRole } = useAuth();
   const { toast } = useToast();
 
   const handleApprove = async (request: UpgradeRequest) => {

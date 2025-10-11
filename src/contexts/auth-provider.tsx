@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -56,7 +55,7 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const protectedRoutes = ['/dashboard'];
+const protectedRoutes = ['/dashboard', '/admin'];
 const publicRoutes = ['/login', '/signup'];
 
 export function AuthProvider({ children }: { children: React.ReactNode; }) {
@@ -86,9 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     if (userSnap.exists()) {
                         currentUser = { uid: userSnap.id, ...userSnap.data(), role } as User;
                     } else {
-                         const newUserDoc: Omit<User, 'uid'|'role'> = {
+                         const newUserDoc: Omit<User, 'uid'|'role'|'createdAt'> = {
                              email: fbUser.email!,
-                             createdAt: new Date().toISOString(),
                          };
                          await setDoc(userDocRef, {
                             ...newUserDoc,
@@ -99,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                              ...newUserDoc,
                              uid: fbUser.uid,
                              role: role,
+                             createdAt: new Date().toISOString(),
                          };
                     }
                     setUser(currentUser);
@@ -135,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
             }
         } else {
-            const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route)) || isAdminRoute;
+            const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
             if (isProtectedRoute) {
                  router.replace('/login');
             }
@@ -147,72 +146,77 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     useEffect(() => {
         if (!db) return;
         
-        // Always subscribe to free signals
-        const freeSignalsQuery = query(collection(db, 'signals_free'), orderBy('createdAt', 'desc'));
-        const unsubFree = onSnapshot(freeSignalsQuery, (snapshot) => {
-            const freeSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-            setSignals(prev => [...prev.filter(s => s.status !== 'free'), ...freeSignalsData]);
-        }, (error) => {
-            if (error.code === 'permission-denied') {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'signals_free').path, operation: 'list'}));
-            } else {
-               console.error("Free signal listener error:", error);
-            }
-        });
+        let unsubscribers: (()=>void)[] = [];
 
-        // Conditional subscriptions for pro/admin users
-        let unsubPro = () => {};
-        let unsubUsers = () => {};
-        let unsubRequests = () => {};
-
-        if (user?.role === 'pro' || user?.role === 'admin') {
+        // Always subscribe to all signals if user is admin, otherwise just free/pro
+        const setupSignalListeners = () => {
+            const freeSignalsQuery = query(collection(db, 'signals_free'), orderBy('createdAt', 'desc'));
             const proSignalsQuery = query(collection(db, 'signals_pro'), orderBy('createdAt', 'desc'));
-            unsubPro = onSnapshot(proSignalsQuery, (snapshot) => {
-                const proSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-                setSignals(prev => [...prev.filter(s => s.status !== 'premium'), ...proSignalsData]);
+
+            const unsubFree = onSnapshot(freeSignalsQuery, (snapshot) => {
+                const freeSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+                setSignals(prev => [...prev.filter(s => s.status !== 'free'), ...freeSignalsData]);
             }, (error) => {
                 if (error.code === 'permission-denied') {
-                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'signals_pro').path, operation: 'list'}));
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'signals_free', operation: 'list'}));
                 } else {
-                   console.error("Pro signal listener error:", error);
+                   console.error("Free signal listener error:", error);
                 }
             });
-        } else {
-            setSignals(prev => prev.filter(s => s.status !== 'premium'));
+            unsubscribers.push(unsubFree);
+            
+            if (user?.role === 'pro' || user?.role === 'admin') {
+                const unsubPro = onSnapshot(proSignalsQuery, (snapshot) => {
+                    const proSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+                    setSignals(prev => [...prev.filter(s => s.status !== 'premium'), ...proSignalsData]);
+                }, (error) => {
+                    if (error.code === 'permission-denied') {
+                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'signals_pro', operation: 'list'}));
+                    } else {
+                       console.error("Pro signal listener error:", error);
+                    }
+                });
+                unsubscribers.push(unsubPro);
+            } else {
+                // If user is not pro/admin, ensure no pro signals are in state
+                 setSignals(prev => prev.filter(s => s.status !== 'premium'));
+            }
         }
 
-        if (user?.role === 'admin') {
-            const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-            unsubUsers = onSnapshot(usersQuery, (snapshot) => {
-                const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                setAllUsers(usersData);
-            }, (error) => {
-                if (error.code === 'permission-denied') {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'users').path, operation: 'list' }));
-                } else {
-                    console.error("User listener error:", error);
-                }
-            });
+        const setupAdminListeners = () => {
+             if (user?.role === 'admin') {
+                const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+                const unsubUsers = onSnapshot(usersQuery, (snapshot) => {
+                    const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+                    setAllUsers(usersData);
+                }, (error) => {
+                    if (error.code === 'permission-denied') {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'users', operation: 'list' }));
+                    } else {
+                        console.error("User listener error:", error);
+                    }
+                });
+                unsubscribers.push(unsubUsers);
 
-            const requestsQuery = query(collection(db, "upgrade_requests"), orderBy("requestedAt", "desc"));
-            unsubRequests = onSnapshot(requestsQuery, (snapshot) => {
-                const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpgradeRequest));
-                setUpgradeRequests(requestsData);
-            }, (error) => {
-                console.error("Error fetching upgrade requests:", error);
-            });
-
-        } else {
-            setAllUsers([]);
-            setUpgradeRequests([]);
+                const requestsQuery = query(collection(db, "upgrade_requests"), orderBy("requestedAt", "desc"));
+                const unsubRequests = onSnapshot(requestsQuery, (snapshot) => {
+                    const requestsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpgradeRequest));
+                    setUpgradeRequests(requestsData);
+                }, (error) => {
+                    console.error("Error fetching upgrade requests:", error);
+                });
+                unsubscribers.push(unsubRequests);
+            } else {
+                setAllUsers([]);
+                setUpgradeRequests([]);
+            }
         }
-
+        
+        setupSignalListeners();
+        setupAdminListeners();
 
         return () => {
-            unsubFree();
-            unsubPro();
-            unsubUsers();
-            unsubRequests();
+            unsubscribers.forEach(unsub => unsub());
         };
     }, [user, db]);
 
