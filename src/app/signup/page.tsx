@@ -9,7 +9,6 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/hooks/use-auth';
 
 import { Button } from "@/components/ui/button";
@@ -20,8 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
 import { useRouter } from "next/navigation";
-import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
-import { errorEmitter } from "@/firebase/error-emitter";
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Name must be at least 2 characters."}),
@@ -33,7 +30,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { auth, db } = useAuth();
+  const { auth } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -46,7 +43,6 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
-    let user; // Declare user here to be accessible in the catch block
 
     try {
       // Create user with Firebase Authentication
@@ -56,20 +52,8 @@ export default function SignupPage() {
         values.password
       );
 
-      user = userCredential.user;
+      const user = userCredential.user;
 
-      // Store user profile information in Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      const userProfile = {
-        fullName: values.fullName,
-        email: values.email,
-        role: 'free', // Default role for new users
-        createdAt: serverTimestamp(),
-      };
-      
-      // Use await here to ensure profile creation is attempted before verification email
-      await setDoc(userDocRef, userProfile);
-      
       // Send email verification
       await sendEmailVerification(user);
       
@@ -78,33 +62,15 @@ export default function SignupPage() {
         description: "A verification email has been sent. Please verify your email, then log in.",
       });
 
-      // Redirect user to the login page immediately after signup
+      // The AuthProvider will handle profile creation and redirection
       router.push("/login");
 
     } catch (error: any) {
-       if (error.code === 'permission-denied') {
-            const userId = user?.uid || 'unknown-uid';
-            const userDocRef = doc(db, 'users', userId);
-            const userProfileData = {
-                fullName: values.fullName,
-                email: values.email,
-                role: 'free',
-            };
-
-            const permissionError = new FirestorePermissionError({
-                path: userDocRef.path,
-                operation: 'create',
-                requestResourceData: userProfileData,
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-            // Display a toast message with the error
-            toast({
-                variant: "destructive",
-                title: "Signup Failed",
-                description: error.message || "An unexpected error occurred.",
-            });
-        }
+        toast({
+            variant: "destructive",
+            title: "Signup Failed",
+            description: error.message || "An unexpected error occurred.",
+        });
     } finally {
       setLoading(false);
     }

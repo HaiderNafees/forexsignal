@@ -2,7 +2,7 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -80,15 +80,27 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
-                        // This can happen if the user record in firestore is deleted
-                        // but the auth record still exists. We should sign them out.
-                        setUser(null);
-                        await signOut(auth);
+                        // This is a new user, create their profile document
+                        console.log("New user detected, creating profile...");
+                        const newUserProfile: Omit<User, 'uid' | 'createdAt'> & { createdAt: any } = {
+                            email: fbUser.email!,
+                            role: 'free', // Default role
+                        };
+                        
+                        const userDocRef = doc(db, 'users', fbUser.uid);
+                        await setDoc(userDocRef, {
+                            ...newUserProfile,
+                            createdAt: serverTimestamp(),
+                        });
+
+                        const freshlyCreatedUser = await getDoc(userDocRef);
+                        if (freshlyCreatedUser.exists()) {
+                             setUser({ uid: freshlyCreatedUser.id, ...freshlyCreatedUser.data() } as User);
+                        }
                     }
                 } catch (err: any) {
                      if (err.code === 'unavailable' || err.code === 'permission-denied') {
                         console.warn("Could not fetch user profile:", err.message);
-                        // Emit a contextual error for permission issues
                         if (err.code === 'permission-denied') {
                              const permissionError = new FirestorePermissionError({
                                 path: userRef.path,
@@ -99,7 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     } else {
                         console.error("Failed to fetch user document:", err);
                     }
-                    // In any error case, sign out the user to be safe.
                     setUser(null);
                     await signOut(auth);
                 }
@@ -118,27 +129,23 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
         const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
-        // If not authenticated and on a protected route, redirect to login
         if (!user && isProtectedRoute) {
             router.replace('/login');
             return;
         }
 
         if (user) {
-            // If user is on a public route (login/signup), redirect them to their dashboard
             if (isPublicRoute) {
                 const destination = user.role === 'admin' ? '/admin' : '/dashboard';
                 router.replace(destination);
                 return;
             }
 
-            // If an admin is on a non-admin page, redirect to admin dashboard
             if (user.role === 'admin' && !pathname.startsWith('/admin')) {
                 router.replace('/admin');
                 return;
             }
 
-            // If a non-admin is trying to access the admin page, redirect to their dashboard
             if (user.role !== 'admin' && pathname.startsWith('/admin')) {
                 router.replace('/dashboard');
                 return;
@@ -153,27 +160,42 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
             return;
         };
         
-        const signalsCollection = user.role === 'admin' ? collection(db, 'signals_pro') : collection(db, 'signals_free');
-        const signalsQuery = query(signalsCollection, orderBy('createdAt', 'desc'));
+        // Admins should see all signals, free/pro users see free signals
+        const freeSignalsQuery = query(collection(db, 'signals_free'), orderBy('createdAt', 'desc'));
+        const proSignalsQuery = query(collection(db, 'signals_pro'), orderBy('createdAt', 'desc'));
 
-        const unsubscribeSignals = onSnapshot(signalsQuery, 
+        const unsubFree = onSnapshot(freeSignalsQuery, 
             (snapshot) => {
-                const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-                setSignals(signalsData);
+                const freeSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+                setSignals(prev => [...prev.filter(s => s.status !== 'free'), ...freeSignalsData]);
             }, 
-            async (error) => {
+            (error) => {
                 if (error.code === 'permission-denied') {
-                    const permissionError = new FirestorePermissionError({
-                        path: signalsCollection.path,
-                        operation: 'list',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'signals_free').path, operation: 'list'}));
                 } else {
-                   console.error("Signal listener error:", error);
-                   toast({ variant: 'destructive', title: 'Error', description: 'Could not load signals.' });
+                   console.error("Free signal listener error:", error);
                 }
             }
         );
+
+        let unsubPro = () => {};
+        if (user.role === 'admin' || user.role === 'pro') {
+            unsubPro = onSnapshot(proSignalsQuery,
+                (snapshot) => {
+                    const proSignalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+                    setSignals(prev => [...prev.filter(s => s.status !== 'premium'), ...proSignalsData]);
+                },
+                (error) => {
+                    if (error.code === 'permission-denied') {
+                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'signals_pro').path, operation: 'list'}));
+                    } else {
+                       console.error("Pro signal listener error:", error);
+                    }
+                }
+            );
+        } else {
+            setSignals(prev => prev.filter(s => s.status !== 'premium'));
+        }
 
         let unsubscribeUsers = () => {};
         if (user.role === 'admin') {
@@ -183,13 +205,9 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
                     setUsers(usersData);
                 }, 
-                async (error) => {
+                (error) => {
                     if (error.code === 'permission-denied') {
-                        const permissionError = new FirestorePermissionError({
-                            path: collection(db, 'users').path,
-                            operation: 'list',
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: collection(db, 'users').path, operation: 'list' }));
                     } else {
                         console.error("User listener error:", error);
                         toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
@@ -201,7 +219,8 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         }
 
         return () => {
-            unsubscribeSignals();
+            unsubFree();
+            unsubPro();
             unsubscribeUsers();
         };
     }, [user, toast]);
@@ -246,7 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 description: 'The user record from Firestore has been removed.',
             });
         })
-        .catch(async (serverError) => {
+        .catch((serverError) => {
             if(serverError.code === 'permission-denied'){
                 const permissionError = new FirestorePermissionError({
                     path: userRef.path,
@@ -260,13 +279,14 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   }, [toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt'>) => {
-    const signalsCollection = collection(db, signalData.status === 'premium' ? 'signals_pro' : 'signals_free');
+    const collectionName = signalData.status === 'premium' ? 'signals_pro' : 'signals_free';
+    const signalsCollection = collection(db, collectionName);
     const newSignalData = { ...signalData, createdAt: serverTimestamp() };
     addDoc(signalsCollection, newSignalData)
         .then(() => {
             toast({ title: "Signal Created", description: "The new signal has been added successfully." });
         })
-        .catch(async (serverError) => {
+        .catch((serverError) => {
              if(serverError.code === 'permission-denied'){
                 const permissionError = new FirestorePermissionError({
                     path: signalsCollection.path,
@@ -283,12 +303,13 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
   const updateSignal = useCallback(async (signal: Signal) => {
     const { id, status, ...signalData } = signal;
-    const signalRef = doc(db, status === 'premium' ? 'signals_pro' : 'signals_free', id);
+    const collectionName = status === 'premium' ? 'signals_pro' : 'signals_free';
+    const signalRef = doc(db, collectionName, id);
     updateDoc(signalRef, { ...signalData })
         .then(() => {
             toast({ title: "Signal Updated", description: "The signal has been updated successfully." });
         })
-        .catch(async (serverError) => {
+        .catch((serverError) => {
             if(serverError.code === 'permission-denied'){
                 const permissionError = new FirestorePermissionError({
                     path: signalRef.path,
@@ -303,7 +324,8 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
   }, [toast, db]);
   
   const deleteSignal = useCallback(async (signalId: string, status: 'free' | 'premium') => {
-    const signalRef = doc(db, status === 'premium' ? 'signals_pro' : 'signals_free', signalId);
+    const collectionName = status === 'premium' ? 'signals_pro' : 'signals_free';
+    const signalRef = doc(db, collectionName, signalId);
     deleteDoc(signalRef)
         .then(() => {
             toast({
@@ -312,7 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                 description: "The signal has been removed."
             });
         })
-        .catch(async (serverError) => {
+        .catch((serverError) => {
             if(serverError.code === 'permission-denied'){
                 const permissionError = new FirestorePermissionError({
                     path: signalRef.path,
@@ -353,5 +375,3 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
     </AuthContext.Provider>
   );
 }
-
-    
