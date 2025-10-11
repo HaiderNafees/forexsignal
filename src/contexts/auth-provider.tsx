@@ -2,13 +2,12 @@
 "use client";
 
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
-import { SIGNALS as placeholderSignals } from '@/lib/placeholder-data';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
@@ -18,12 +17,12 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCMNEY5IcP7nGwKW7nt98AfTze1d62F8SE",
-    authDomain: "forexsignal-371b3.firebaseapp.com",
-    projectId: "forexsignal-371b3",
-    storageBucket: "forexsignal-371b3.appspot.com",
-    messagingSenderId: "617111923339",
-    appId: "1:617111923339:web:063a079794acf64a3e028e"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Singleton pattern for Firebase instances
@@ -37,51 +36,6 @@ if (typeof window !== 'undefined') {
   auth = getAuth(app);
   db = getFirestore(app);
   functions = getFunctions(app);
-}
-
-async function seedInitialData() {
-    if (typeof window === 'undefined' || (window as any).hasSeeded) return;
-
-    try {
-        console.log("Checking for initial data seed...");
-        
-        try {
-            await createUserWithEmailAndPassword(auth, 'forexsignaldmn@gmail.com', 'Admin798956!!');
-            console.log("Admin user created in Firebase Auth.");
-        } catch (error: any) {
-            if (error.code !== 'auth/email-already-in-use') {
-                 console.error("Error creating admin user:", error);
-            } else {
-                console.log("Admin user already exists in Firebase Auth.");
-            }
-        }
-
-        const firstSignalRef = doc(db, 'signals', 'sig001');
-        const firstSignalSnap = await getDoc(firstSignalRef);
-
-        if (!firstSignalSnap.exists()) {
-            console.log("Seeding initial signals...");
-            const signalPromises = placeholderSignals.map(signal => {
-                const { id, ...signalData } = signal;
-                const signalRef = doc(db, 'signals', id);
-                return setDoc(signalRef, { ...signalData, createdAt: serverTimestamp() }).catch(serverError => {
-                    // Non-blocking, best-effort seeding.
-                    console.warn(`Could not seed signal ${id}:`, serverError.message);
-                });
-            });
-            await Promise.all(signalPromises);
-        }
-
-        (window as any).hasSeeded = true;
-        console.log("Seeding check complete.");
-
-    } catch (error: any) {
-        if((error as any).code === 'auth/configuration-not-found' || (error as any).code === 'unavailable') {
-            console.warn("Auth configuration not found or service unavailable. This might be expected in some environments. Skipping admin creation.");
-        } else {
-            console.error("Error during initial data seed:", error);
-        }
-    }
 }
 
 type AuthContextType = {
@@ -105,7 +59,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const protectedRoutes = ['/dashboard', '/admin'];
 const publicRoutes = ['/login', '/signup'];
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode; }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -114,10 +68,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-
-    useEffect(() => {
-        seedInitialData();
-    }, []);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -130,16 +80,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const userData = { uid: userSnap.id, ...userSnap.data() } as User;
                         setUser(userData);
                     } else {
+                        // This can happen if the user record in firestore is deleted
+                        // but the auth record still exists. We should sign them out.
                         setUser(null);
+                        await signOut(auth);
                     }
                 } catch (err: any) {
-                     if (err.code === 'unavailable') {
-                        // This can happen on first load or if network is temporarily down.
-                        // Firestore will retry, so we don't need to panic.
-                        console.warn("Firestore unavailable, will retry fetching user profile.");
-                    } else {
-                        console.error("Failed to fetch user document:", err);
-                        // Potentially a permissions error after a rules change
+                     if (err.code === 'unavailable' || err.code === 'permission-denied') {
+                        console.warn("Could not fetch user profile:", err.message);
+                        // Emit a contextual error for permission issues
                         if (err.code === 'permission-denied') {
                              const permissionError = new FirestorePermissionError({
                                 path: userRef.path,
@@ -147,8 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             });
                             errorEmitter.emit('permission-error', permissionError);
                         }
+                    } else {
+                        console.error("Failed to fetch user document:", err);
                     }
+                    // In any error case, sign out the user to be safe.
                     setUser(null);
+                    await signOut(auth);
                 }
             } else {
                 setUser(null);
@@ -165,17 +118,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
         const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
+        // If not authenticated and on a protected route, redirect to login
         if (!user && isProtectedRoute) {
             router.replace('/login');
+            return;
         }
 
         if (user) {
+            // If user is on a public route (login/signup), redirect them to their dashboard
+            if (isPublicRoute) {
+                const destination = user.role === 'admin' ? '/admin' : '/dashboard';
+                router.replace(destination);
+                return;
+            }
+
+            // If an admin is on a non-admin page, redirect to admin dashboard
             if (user.role === 'admin' && !pathname.startsWith('/admin')) {
                 router.replace('/admin');
-            } else if (user.role !== 'admin' && pathname.startsWith('/admin')) {
+                return;
+            }
+
+            // If a non-admin is trying to access the admin page, redirect to their dashboard
+            if (user.role !== 'admin' && pathname.startsWith('/admin')) {
                 router.replace('/dashboard');
-            } else if (isPublicRoute) {
-                 router.replace('/dashboard');
+                return;
             }
         }
     }, [user, loading, pathname, router]);
@@ -366,7 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     updateUserRole,
     deleteUser,
-addSignal,
+    addSignal,
     updateSignal,
     deleteSignal,
     auth,
@@ -379,5 +345,3 @@ addSignal,
     </AuthContext.Provider>
   );
 }
-
-    
