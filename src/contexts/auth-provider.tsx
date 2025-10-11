@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
 import type { User, Signal } from '@/lib/types';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
@@ -82,14 +82,22 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
                     if (userSnap.exists()) {
                          userData = { uid: userSnap.id, ...userSnap.data(), role } as User;
                     } else {
-                        // This case handles a newly signed-up user whose profile is not yet created.
+                        // This handles a newly signed-up user.
+                        // The `setUserRoleOnCreate` function will create the doc, but we need to create the user profile
+                        // on the client as well for immediate UI needs and to avoid permission errors.
                         userData = {
                              uid: fbUser.uid,
                              email: fbUser.email!,
-                             role: role,
+                             role: role, // Role from custom claim
                              createdAt: new Date().toISOString(),
                         };
-                         // The `setUserRoleOnCreate` cloud function will create it, but we have it here for immediate UI needs.
+                        // Non-blocking write to create user profile
+                         setDoc(userDocRef, {
+                            uid: fbUser.uid,
+                            email: fbUser.email,
+                            role: 'free', // Default role on creation
+                            createdAt: serverTimestamp()
+                        }).catch(e => console.error("Error creating user document:", e));
                     }
                     setUser(userData);
                 } catch (err: any) {
@@ -110,29 +118,29 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
         if (loading) return;
 
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-        const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
         const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
 
+        // If not logged in and trying to access a protected route, redirect to login
         if (!user && isProtectedRoute) {
             router.replace('/login');
             return;
         }
 
+        // If logged in, handle redirects based on role
         if (user) {
-            if (isPublicRoute) {
-                const destination = user.role === 'admin' ? '/admin' : '/dashboard';
-                router.replace(destination);
-                return;
-            }
+            const isPublicAuthRoute = pathname === '/login' || pathname === '/signup';
 
-            if (user.role === 'admin' && !isAdminRoute) {
-                router.replace('/admin');
-                return;
-            }
-
-            if (user.role !== 'admin' && isAdminRoute) {
-                router.replace('/dashboard');
-                return;
+            // If user is admin
+            if (user.role === 'admin') {
+                if (!isAdminRoute) {
+                    router.replace('/admin'); // Force redirect to admin if not already there
+                }
+            } else { // If user is not admin (pro or free)
+                if (isAdminRoute) {
+                    router.replace('/dashboard'); // If they try to access admin, kick them to dashboard
+                } else if (isPublicAuthRoute) {
+                    router.replace('/dashboard'); // If they are on login/signup, move them to dashboard
+                }
             }
         }
     }, [user, loading, pathname, router]);
