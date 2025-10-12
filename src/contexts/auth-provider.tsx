@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
@@ -25,7 +24,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, Signal, Payment } from '@/lib/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -55,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
-  const router = useRouter();
+  const pathname = usePathname();
 
 
   useEffect(() => {
@@ -73,7 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
             }
             setLoading(false);
-        }, () => {
+        }, (error) => {
+            console.error("Error fetching user document:", error);
             setUser(null);
             setLoading(false);
         });
@@ -91,42 +91,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
 
-  // Listener for signals data based on user role
+  // Listener for signals data
   useEffect(() => {
     setSignalsLoading(true);
-    
-    // Don't fetch if loading user state, or if user is null for role-based queries
-    if(loading && !user) {
-        // If there's no user and we're not auth-loading, they are a guest.
-        if(!loading && !user) {
-            const guestQuery = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'), limit(2));
-             const unsubscribe = onSnapshot(guestQuery, (snapshot) => {
-                const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-                setSignals(fetchedSignals);
-                setSignalsLoading(false);
-            }, (error) => {
-                console.error("Error fetching guest signals:", error);
-                setSignals([]);
-                setSignalsLoading(false);
-            });
-            return () => unsubscribe();
-        }
-        return;
-    };
-
     let q;
+
     if (user && (user.role === 'admin' || user.role === 'pro')) {
+      // Admin and Pro users get all signals
       q = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
-    } else { // Handles guest and free user cases after initial auth check
+    } else {
+      // Guests and Free users get only free signals
       q = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'));
     }
-
+    
     const unsubscribeSignals = onSnapshot(q, (snapshot) => {
       let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-      // Limit for free users on the client side
-      if (!user || user.role === 'free') {
-        fetchedSignals = fetchedSignals.slice(0, 2);
-      }
       setSignals(fetchedSignals);
       setSignalsLoading(false);
     }, (error) => {
@@ -136,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribeSignals();
-  }, [user, loading]);
+  }, [user, loading]); // Depend on user and loading state
 
 
   // Listeners for admin-specific data

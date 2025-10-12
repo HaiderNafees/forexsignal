@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -10,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/auth-provider';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
@@ -35,8 +34,7 @@ export default function LoginPage() {
   const onSubmit: SubmitHandler<LoginValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      const userCredential = await login(data.email, data.password);
-      const user = userCredential.user;
+      const user = await login(data.email, data.password);
       
       // Force refresh the token to get the latest custom claims.
       const idTokenResult = await user.getIdTokenResult(true);
@@ -53,7 +51,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
 
-    } catch (error: any) {
+    } catch (error: any) => {
       console.error(error);
       toast({
         variant: 'destructive',

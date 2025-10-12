@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/auth-provider';
 import { UserNav } from '@/components/auth/user-nav';
 import { Logo } from '@/components/logo';
 import { Menu, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { usePathname } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function Header() {
   const { user, loading } = useAuth();
@@ -48,7 +49,7 @@ export function Header() {
   
   const linkClasses = cn(
       "text-sm font-medium transition-colors hover:text-primary",
-      isScrolled || !isHomePage ? "text-foreground" : "text-gray-200 hover:text-white"
+      isScrolled || !isHomePage ? "text-gray-200 hover:text-white" : "text-foreground"
   );
 
   const mobileLinkClasses = cn(
@@ -83,7 +84,7 @@ export function Header() {
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2">
             {loading ? (
-              <div className="h-8 w-20 animate-pulse rounded-md bg-muted/50" />
+              <Skeleton className="h-10 w-28" />
             ) : user ? (
               <UserNav />
             ) : (

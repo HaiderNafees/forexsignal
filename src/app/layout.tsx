@@ -1,7 +1,6 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { Footer } from '@/components/layout/footer';
 import { ClientProviders } from '@/contexts/client-providers';
 
 export const metadata: Metadata = {

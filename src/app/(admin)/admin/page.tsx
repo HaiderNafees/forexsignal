@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/auth-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +39,7 @@ export default function AdminPage() {
   const { signals, addSignal, updateSignal, deleteSignal, allUsers, payments, signalsLoading, adminLoading } = useAuth();
   const { toast } = useToast();
   
-  const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm<SignalFormValues>({
+  const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty }, watch } = useForm<SignalFormValues>({
     resolver: zodResolver(signalSchema),
     defaultValues: {
         type: 'free',
@@ -282,7 +281,3 @@ export default function AdminPage() {
     </div>
   );
 }
-function watch(arg0: string): any {
-    throw new Error('Function not implemented.');
-}
-

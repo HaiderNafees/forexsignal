@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/auth-provider';
 import { Button } from '../ui/button';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
