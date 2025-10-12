@@ -1,4 +1,3 @@
-
 // src/app/login/page.tsx
 "use client";
 
@@ -41,24 +40,24 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     try {
+      if (!auth) throw new Error("Authentication service is not available.");
+
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
       // Force a token refresh to get the latest custom claims.
-      await userCredential.user.getIdToken(true);
+      const idTokenResult = await userCredential.user.getIdTokenResult(true);
       
       toast({
         title: "Login Successful",
         description: "Redirecting...",
       });
-      // AuthProvider will now handle redirection automatically with the refreshed claims.
-      // A small delay might help ensure context is updated before a hard navigation,
-      // but the provider's useEffect should handle it. We can add a router.push as a fallback.
-      if (values.email === 'admin@forexsignal.com') {
+      
+      // Explicitly check the role from the claims and redirect.
+      if (idTokenResult.claims.role === 'admin') {
           router.push('/admin');
       } else {
           router.push('/dashboard');
       }
-
 
     } catch (error: any) {
       toast({

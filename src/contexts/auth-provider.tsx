@@ -1,4 +1,3 @@
-
 // src/contexts/auth-provider.tsx
 'use client';
 
@@ -73,22 +72,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
         
-        // Force refresh token to get latest claims
-        await fbUser.getIdToken(true);
-
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
            const userData = { uid: userDoc.id, ...userDoc.data() } as User;
            setUser(userData);
-           // Handle redirection right after setting user
-           const isAdminRoute = pathname.startsWith('/admin');
-           if (userData.role === 'admin' && !isAdminRoute) {
-             router.replace('/admin');
-           } else if (userData.role !== 'admin' && isAdminRoute) {
-             router.replace('/dashboard');
-           } else if (publicRoutes.includes(pathname)) {
-             router.replace(userData.role === 'admin' ? '/admin' : '/dashboard');
+            // Non-login page navigation logic
+           if (!publicRoutes.includes(pathname)) {
+                const isAdminRoute = pathname.startsWith('/admin');
+                if (userData.role === 'admin' && !isAdminRoute) {
+                    router.replace('/admin');
+                } else if (userData.role !== 'admin' && isAdminRoute) {
+                    router.replace('/dashboard');
+                }
            }
         } else {
              // This can happen if the user is deleted from Firestore but not from Auth.
@@ -112,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth, db]);
+  }, [auth, db, pathname]); // Added pathname to re-evaluate on route change
 
    useEffect(() => {
     // Only run listeners when auth state is resolved
@@ -134,8 +130,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signalsQuery = query(
           collection(db, 'signals'),
           where('isPremium', '==', false)
-          // orderBy and limit are removed to prevent needing a composite index.
-          // We will sort and limit on the client.
         );
       }
       
@@ -166,18 +160,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } else { // User is not logged in (guest)
-      const guestQuery = query(
-        collection(db, 'signals'),
-        where('isPremium', '==', false)
-      );
+        const guestQuery = query(
+            collection(db, 'signals'),
+            where('isPremium', '==', false)
+        );
       unsubscribeSignals = onSnapshot(guestQuery, (snapshot) => {
         let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-        // Sort by date and take the latest 2 on the client
         fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
         setSignals(fetchedSignals.slice(0, 2));
       }, (error) => {
         console.error("Guest signal fetch error:", error);
-        // Don't show toast for guests
       });
     }
 
@@ -194,6 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOut(auth);
       setUser(null);
       setFirebaseUser(null);
+      setSignals([]);
+      setAllUsers([]);
+      setPayments([]);
       router.push('/login');
       toast({ title: 'Logged Out' });
     } catch (error: any) {
