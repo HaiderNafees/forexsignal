@@ -1,3 +1,4 @@
+
 // src/contexts/auth-provider.tsx
 'use client';
 
@@ -71,6 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (fbUser) {
         setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
+        
+        // Force refresh token to get latest claims
+        await fbUser.getIdToken(true);
+
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
@@ -164,7 +169,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const guestQuery = query(
         collection(db, 'signals'),
         where('isPremium', '==', false)
-        // orderBy and limit are removed to prevent needing a composite index.
       );
       unsubscribeSignals = onSnapshot(guestQuery, (snapshot) => {
         let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
@@ -188,6 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
+      setUser(null);
+      setFirebaseUser(null);
       router.push('/login');
       toast({ title: 'Logged Out' });
     } catch (error: any) {

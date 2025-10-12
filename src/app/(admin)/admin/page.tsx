@@ -1,9 +1,10 @@
+
 // src/app/(admin)/admin/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import type { Signal } from '@/lib/types';
+import type { Signal, User, Payment } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -40,7 +41,7 @@ function SignalForm({
   onSave: (data: Omit<Signal, 'id' | 'createdAt' | 'createdBy'> | Omit<Signal, 'createdAt' | 'createdBy'>) => void;
   onClose: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = React.useState({
     title: signal?.title ?? '',
     description: signal?.description ?? '',
     entryPrice: signal?.entryPrice ?? 0,
@@ -115,8 +116,8 @@ function SignalForm({
 
 function SignalManagement() {
   const { signals, addSignal, updateSignal, deleteSignal } = useAuth();
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedSignal, setSelectedSignal] = useState<Signal | null>(null);
+  const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [selectedSignal, setSelectedSignal] = React.useState<Signal | null>(null);
 
   const handleSave = (data: any) => {
     if (data.id) {

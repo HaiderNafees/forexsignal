@@ -1,3 +1,4 @@
+
 // src/app/login/page.tsx
 "use client";
 
@@ -15,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -26,6 +28,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const { getAuth, loading: authLoading } = useAuth();
   const auth = getAuth();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,6 +51,14 @@ export default function LoginPage() {
         description: "Redirecting...",
       });
       // AuthProvider will now handle redirection automatically with the refreshed claims.
+      // A small delay might help ensure context is updated before a hard navigation,
+      // but the provider's useEffect should handle it. We can add a router.push as a fallback.
+      if (values.email === 'admin@forexsignal.com') {
+          router.push('/admin');
+      } else {
+          router.push('/dashboard');
+      }
+
 
     } catch (error: any) {
       toast({
