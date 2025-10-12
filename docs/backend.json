@@ -1,1 +1,124 @@
-{}
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Represents a user's profile in the system.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID from Firebase Auth."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role.",
+          "enum": ["free", "pro", "admin"]
+        },
+        "proExpires": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp when the user's pro subscription expires."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user profile was created."
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Signal": {
+      "title": "Trading Signal",
+      "description": "Represents a trading signal.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title of the signal (e.g., 'EUR/USD Buy')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the signal's logic."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of signal.",
+          "enum": ["free", "premium"]
+        },
+        "entryPrice": {
+            "type": "number",
+            "description": "The recommended entry price."
+        },
+        "takeProfit": {
+            "type": "number",
+            "description": "The take profit price."
+        },
+        "stopLoss": {
+            "type": "number",
+            "description": "The stop loss price."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The UID of the admin who created the signal."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the signal was created."
+        }
+      },
+      "required": ["title", "description", "type", "createdBy", "createdAt", "entryPrice", "takeProfit", "stopLoss"]
+    },
+    "Payment": {
+      "title": "Payment Record",
+      "description": "Represents a user's payment transaction.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who made the payment."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount paid in USD."
+        },
+        "txHash": {
+          "type": "string",
+          "description": "The transaction hash of the crypto payment."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether the payment has been verified."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the payment record was created."
+        }
+      },
+      "required": ["userId", "amount", "txHash", "verified", "createdAt"]
+    }
+  },
+  "auth": {
+    "providers": ["email"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores public profiles for all users."
+    },
+    "/signals/{signalId}": {
+      "schema": { "$ref": "#/entities/Signal" },
+      "description": "Stores all trading signals created by admins."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Stores payment records for user subscriptions."
+    }
+  }
+}

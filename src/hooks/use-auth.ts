@@ -1,14 +1,4 @@
+'use client';
 
-// src/hooks/use-auth.ts
-"use client";
-
-import { useContext } from 'react';
-import { AuthContext } from '@/contexts/auth-provider';
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+// This file is intentionally left blank. The useAuth hook is now co-located with the AuthProvider.
+export { useAuth } from '@/contexts/auth-provider';
