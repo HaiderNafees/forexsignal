@@ -86,6 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              router.replace(userData.role === 'admin' ? '/admin' : '/dashboard');
            }
         } else {
+             // This can happen if the user is deleted from Firestore but not from Auth.
+             // Log them out to clear state.
+             await signOut(auth);
              setUser(null);
              setFirebaseUser(null);
              if (protectedRoutes.some(route => pathname.startsWith(route))) {
@@ -95,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setFirebaseUser(null);
         setUser(null);
-        setSignals([]); // Clear signals on logout
         if (protectedRoutes.some(route => pathname.startsWith(route))) {
             router.replace('/login');
         }
@@ -108,12 +110,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [auth, db]);
 
    useEffect(() => {
+    // Only run listeners when auth state is resolved
+    if (loading) return;
+
     let unsubscribeSignals: () => void = () => {};
     let unsubscribeUsers: () => void = () => {};
     let unsubscribePayments: () => void = () => {};
-
-    // Don't fetch if initial auth state is still loading
-    if (loading) return;
 
     if (user) { // User is logged in
       const isPro = user.proExpires ? user.proExpires.toMillis() > Date.now() : false;
@@ -123,19 +125,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Admins and Pro users get all signals
         signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
       } else {
-        // Free users get up to 2 free signals from the last 24 hours
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Free users get up to 2 free signals
         signalsQuery = query(
           collection(db, 'signals'),
-          where('isPremium', '==', false),
-          orderBy('createdAt', 'desc'),
-          limit(2)
+          where('isPremium', '==', false)
+          // orderBy and limit are removed to prevent needing a composite index.
+          // We will sort and limit on the client.
         );
       }
       
       unsubscribeSignals = onSnapshot(signalsQuery, snapshot => {
-        setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+        let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+        
+        if (user.role !== 'admin' && !isPro) {
+           // Sort by date and take the latest 2 on the client
+            fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            fetchedSignals = fetchedSignals.slice(0, 2);
+        }
+
+        setSignals(fetchedSignals);
       }, (error) => {
         console.error("Signal fetch error:", error);
         toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
@@ -155,15 +163,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else { // User is not logged in (guest)
       const guestQuery = query(
         collection(db, 'signals'),
-        where('isPremium', '==', false),
-        orderBy('createdAt', 'desc'),
-        limit(2)
+        where('isPremium', '==', false)
+        // orderBy and limit are removed to prevent needing a composite index.
       );
       unsubscribeSignals = onSnapshot(guestQuery, (snapshot) => {
-        setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+        let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+        // Sort by date and take the latest 2 on the client
+        fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+        setSignals(fetchedSignals.slice(0, 2));
       }, (error) => {
         console.error("Guest signal fetch error:", error);
-        // Don't show toast for guests, as it might be expected if rules are strict
+        // Don't show toast for guests
       });
     }
 
@@ -186,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [auth, router, toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt' | 'createdBy'>) => {
-    if (user?.role !== 'admin') {
+    if (user?.role !== 'admin' || !user.uid) {
       toast({ variant: 'destructive', title: 'Permission Denied' });
       return;
     }
