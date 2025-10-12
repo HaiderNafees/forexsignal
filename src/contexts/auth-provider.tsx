@@ -22,7 +22,7 @@ import {
   Timestamp,
   type Firestore,
 } from 'firebase/firestore';
-import { getFunctions, type Functions } from "firebase/functions";
+import { getFunctions, httpsCallable, type Functions } from "firebase/functions";
 import type { Auth } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { User, Signal, Payment } from '@/lib/types';
@@ -70,27 +70,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       if (fbUser) {
         const userDocRef = doc(db, 'users', fbUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-           const userData = { uid: userDoc.id, ...userDoc.data() } as User;
-           setUser(userData);
-           setFirebaseUser(fbUser);
-        } else {
-             // This case can happen if the Firestore doc isn't created yet.
-             // The setupUserOnCreate function should handle it, but we can be defensive.
+        const unsubscribeDoc = onSnapshot(userDocRef, (userDoc) => {
+          if (userDoc.exists()) {
+             const userData = { uid: userDoc.id, ...userDoc.data() } as User;
+             setUser(userData);
+             setFirebaseUser(fbUser);
+          } else {
              setUser(null);
              setFirebaseUser(null);
-             await signOut(auth);
-        }
+          }
+          setLoading(false);
+        });
+        return () => unsubscribeDoc();
       } else {
         setFirebaseUser(null);
         setUser(null);
         if (protectedRoutes.some(route => pathname.startsWith(route))) {
             router.replace('/login');
         }
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -110,23 +109,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let signalsQuery;
       if (user.role === 'admin' || isPro) {
         signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+        
+        unsubscribeSignals = onSnapshot(signalsQuery, snapshot => {
+          const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+          setSignals(fetchedSignals);
+        }, (error) => {
+          console.error("Signal fetch error:", error);
+          toast({variant: "destructive", title: "Error fetching signals", description: error.message});
+        });
+
       } else {
         // Free user, fetch only free signals
         signalsQuery = query(
           collection(db, 'signals'),
-          where('isPremium', '==', false),
-          orderBy('createdAt', 'desc'),
-          limit(2)
+          where('isPremium', '==', false)
         );
+
+        unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
+            const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+            // Sort client-side
+            fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            setSignals(fetchedSignals.slice(0, 2));
+        }, (error) => {
+            console.error("Free user signal fetch error:", error);
+            toast({variant: "destructive", title: "Error fetching signals", description: error.message});
+        });
       }
       
-      unsubscribeSignals = onSnapshot(signalsQuery, snapshot => {
-        const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-        setSignals(fetchedSignals);
-      }, (error) => {
-        console.error("Signal fetch error:", error);
-        toast({variant: "destructive", title: "Error fetching signals", description: error.message});
-      });
 
       if (user.role === 'admin') {
         const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
