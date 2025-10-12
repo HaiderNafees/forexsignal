@@ -1,9 +1,8 @@
 import type {Metadata} from 'next';
 import './globals.css';
-import { AuthProvider } from '@/contexts/auth-provider';
-import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/layout/footer';
+import { ClientProviders } from '@/contexts/client-providers';
 
 export const metadata: Metadata = {
   title: 'Trader Choice | Premium Forex Signals & Analytics',
@@ -26,12 +25,10 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider>
-          <Header />
-          <main>{children}</main>
-          <Footer />
+        <ClientProviders>
+          {children}
           <Toaster />
-        </AuthProvider>
+        </ClientProviders>
       </body>
     </html>
   );

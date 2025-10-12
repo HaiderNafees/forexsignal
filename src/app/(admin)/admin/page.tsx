@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -21,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const signalSchema = z.object({
   id: z.string().optional(),
@@ -35,23 +37,27 @@ const signalSchema = z.object({
 type SignalFormValues = z.infer<typeof signalSchema>;
 
 export default function AdminPage() {
-  const { signals, addSignal, updateSignal, deleteSignal, allUsers, payments, loading } = useAuth();
+  const { signals, addSignal, updateSignal, deleteSignal, allUsers, payments, signalsLoading, adminLoading } = useAuth();
   const { toast } = useToast();
   
-  const { register, handleSubmit, control, reset, setValue, formState: { errors } } = useForm<SignalFormValues>({
+  const { register, handleSubmit, control, reset, setValue, formState: { errors, isDirty } } = useForm<SignalFormValues>({
     resolver: zodResolver(signalSchema),
     defaultValues: {
         type: 'free',
+        entryPrice: 0,
+        takeProfit: 0,
+        stopLoss: 0
     }
   });
 
   const handleFormSubmit: SubmitHandler<SignalFormValues> = async (data) => {
     try {
-      if (data.id) {
-        await updateSignal(data.id, data);
+      const { id, ...signalData } = data;
+      if (id) {
+        await updateSignal(id, signalData);
         toast({ title: 'Success', description: 'Signal updated successfully.' });
       } else {
-        await addSignal(data);
+        await addSignal(signalData);
         toast({ title: 'Success', description: 'Signal added successfully.' });
       }
       reset({ title: '', description: '', type: 'free', entryPrice: 0, takeProfit: 0, stopLoss: 0, id: undefined });
@@ -92,6 +98,7 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+            <input type="hidden" {...register('id')} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="title">Signal Title</Label>
@@ -143,8 +150,8 @@ export default function AdminPage() {
             </div>
 
             <div className="flex gap-4">
-                <Button type="submit">{register('id').value ? 'Update Signal' : 'Create Signal'}</Button>
-                <Button variant="outline" type="button" onClick={() => reset({ title: '', description: '', type: 'free', entryPrice: 0, takeProfit: 0, stopLoss: 0, id: undefined })}>Cancel</Button>
+                <Button type="submit">{watch('id') ? 'Update Signal' : 'Create Signal'}</Button>
+                {isDirty && <Button variant="outline" type="button" onClick={() => reset({ title: '', description: '', type: 'free', entryPrice: 0, takeProfit: 0, stopLoss: 0, id: undefined })}>Cancel</Button>}
             </div>
           </form>
         </CardContent>
@@ -166,8 +173,12 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center">Loading signals...</TableCell></TableRow>
+              {signalsLoading ? (
+                 [...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                    </TableRow>
+                 ))
               ) : signals.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center">No signals found.</TableCell></TableRow>
               ) : (
@@ -176,7 +187,7 @@ export default function AdminPage() {
                     <TableCell className="font-medium">{signal.title}</TableCell>
                     <TableCell><span className={`capitalize p-2 rounded-md ${signal.type === 'premium' ? 'bg-accent text-accent-foreground' : 'bg-secondary text-secondary-foreground'}`}>{signal.type}</span></TableCell>
                     <TableCell>{signal.entryPrice}</TableCell>
-                    <TableCell>{format(signal.createdAt.toDate(), 'PPP p')}</TableCell>
+                    <TableCell>{signal.createdAt ? format(signal.createdAt.toDate(), 'PPP p') : 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(signal)}>Edit</Button>
                       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(signal.id)}><Trash2 className="h-4 w-4"/></Button>
@@ -204,8 +215,12 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                 <TableRow><TableCell colSpan={4} className="text-center">Loading users...</TableCell></TableRow>
+              {adminLoading ? (
+                 [...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell colSpan={4}><Skeleton className="h-8 w-full" /></TableCell>
+                    </TableRow>
+                 ))
               ) : allUsers.length === 0 ? (
                  <TableRow><TableCell colSpan={4} className="text-center">No users found.</TableCell></TableRow>
               ) : (
@@ -214,7 +229,7 @@ export default function AdminPage() {
                     <TableCell>{user.email}</TableCell>
                     <TableCell className="capitalize">{user.role}</TableCell>
                     <TableCell>{user.proExpires ? format(user.proExpires.toDate(), 'PPP') : 'N/A'}</TableCell>
-                    <TableCell>{format(user.createdAt.toDate(), 'PPP')}</TableCell>
+                    <TableCell>{user.createdAt ? format(user.createdAt.toDate(), 'PPP') : 'N/A'}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -238,8 +253,12 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                 <TableRow><TableCell colSpan={4} className="text-center">Loading payments...</TableCell></TableRow>
+              {adminLoading ? (
+                [...Array(3)].map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell colSpan={4}><Skeleton className="h-8 w-full" /></TableCell>
+                    </TableRow>
+                 ))
               ) : payments.length === 0 ? (
                  <TableRow><TableCell colSpan={4} className="text-center">No payments found.</TableCell></TableRow>
               ) : (
@@ -250,7 +269,7 @@ export default function AdminPage() {
                         <TableCell>{user?.email || 'Unknown User'}</TableCell>
                         <TableCell><a href={`https://tronscan.org/#/transaction/${payment.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate w-32 block">{payment.txHash}</a></TableCell>
                         <TableCell>${payment.amount}</TableCell>
-                        <TableCell>{format(payment.createdAt.toDate(), 'PPP p')}</TableCell>
+                        <TableCell>{payment.createdAt ? format(payment.createdAt.toDate(), 'PPP p') : 'N/A'}</TableCell>
                       </TableRow>
                   )
                 })
@@ -263,3 +282,7 @@ export default function AdminPage() {
     </div>
   );
 }
+function watch(arg0: string): any {
+    throw new Error('Function not implemented.');
+}
+

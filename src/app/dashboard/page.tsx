@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -8,11 +9,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Gem, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
-  const { user, signals, loading } = useAuth();
+  const { user, signals, loading, signalsLoading } = useAuth();
+  const router = useRouter();
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+
+  if (loading || !user) {
     return (
        <div className="min-h-screen bg-background pt-24">
          <div className="container mx-auto px-4 md:px-6 py-8">
@@ -22,24 +33,6 @@ export default function DashboardPage() {
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64" />)}
             </div>
          </div>
-       </div>
-    )
-  }
-  
-  if (!user) {
-    return (
-       <div className="min-h-screen bg-background pt-24 flex items-center justify-center">
-         <Card className="text-center p-8">
-             <CardHeader>
-                 <CardTitle>Access Denied</CardTitle>
-                 <CardDescription>You must be logged in to view the dashboard.</CardDescription>
-             </CardHeader>
-             <CardContent>
-                 <Button asChild>
-                     <Link href="/login">Login</Link>
-                 </Button>
-             </CardContent>
-         </Card>
        </div>
     )
   }
@@ -72,7 +65,13 @@ export default function DashboardPage() {
         )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {signals.length > 0 ? (
+          {signalsLoading ? (
+            <>
+              <Skeleton className="h-64 rounded-lg" />
+              <Skeleton className="h-64 rounded-lg" />
+              <Skeleton className="h-64 rounded-lg" />
+            </>
+          ) : signals.length > 0 ? (
             signals.map(signal => (
               <Card key={signal.id} className="flex flex-col">
                 <CardHeader>
@@ -80,7 +79,7 @@ export default function DashboardPage() {
                     <CardTitle className="font-headline">{signal.title}</CardTitle>
                     <Badge variant={signal.type === 'premium' ? 'default' : 'secondary'}>{signal.type}</Badge>
                   </div>
-                  <CardDescription>{format(signal.createdAt.toDate(), 'PPP p')}</CardDescription>
+                  <CardDescription>{signal.createdAt ? format(signal.createdAt.toDate(), 'PPP p') : 'No date'}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow space-y-4">
                   <p className="text-sm text-muted-foreground">{signal.description}</p>
@@ -116,3 +115,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
