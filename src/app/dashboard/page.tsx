@@ -26,8 +26,10 @@ export default function DashboardPage() {
     return (
        <div className="min-h-screen bg-background pt-24">
          <div className="container mx-auto px-4 md:px-6 py-8">
-            <Skeleton className="h-10 w-1/3 mb-2" />
-            <Skeleton className="h-6 w-1/2 mb-8" />
+            <header className="mb-8">
+              <Skeleton className="h-10 w-1/2 mb-2" />
+              <Skeleton className="h-6 w-1/3" />
+            </header>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64" />)}
             </div>

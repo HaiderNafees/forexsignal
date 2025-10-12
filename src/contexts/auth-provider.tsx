@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -54,23 +54,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        const userDocRef = doc(db, 'users', fbUser.uid);
-        const unsubscribeUser = onSnapshot(userDocRef, (userDocSnap) => {
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data() as User;
-            setUser(userData);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser(docSnap.data() as User);
           } else {
-            setUser(null);
+            // This case might happen if the Firestore doc isn't created yet.
+            // We'll wait for the creation to trigger the listener again.
+             setUser(null);
           }
           setLoading(false);
+        }, (error) => {
+            console.error("Error fetching user profile:", error);
+            setUser(null);
+            setLoading(false);
         });
         return () => unsubscribeUser();
       } else {
         setUser(null);
         setLoading(false);
-        setSignalsLoading(false);
+        setSignals([]);
+        setAllUsers([]);
+        setPayments([]);
       }
     });
 
@@ -80,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-        // Clear signals if user logs out
         setSignals([]);
         setSignalsLoading(false);
         return;
@@ -92,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user.role === 'admin' || user.role === 'pro') {
       signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
     } else {
-      // Free users get the latest 2 free signals
       signalsQuery = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'));
     }
     
@@ -121,8 +126,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       setAllUsers(snapshot.docs.map(doc => doc.data() as User));
+      if(snapshot.docs.length > 0) setAdminLoading(false);
     }, (error) => {
       console.error("Error fetching users:", error);
+       setAdminLoading(false);
     });
 
     const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
@@ -131,17 +138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, (error) => {
        console.error("Error fetching payments:", error);
     });
-    
-    // Combine loading states
-    if(allUsers.length > 0) { // check if users have been loaded
-        setAdminLoading(false);
-    }
 
     return () => {
       unsubscribeUsers();
       unsubscribePayments();
     };
-  }, [user?.role, allUsers.length]);
+  }, [user]);
 
   const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
