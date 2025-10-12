@@ -77,6 +77,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            setUser(userData);
            setFirebaseUser(fbUser);
         } else {
+             // This case can happen if the Firestore doc isn't created yet.
+             // The setupUserOnCreate function should handle it, but we can be defensive.
+             setUser(null);
+             setFirebaseUser(null);
              await signOut(auth);
         }
       } else {
@@ -107,23 +111,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user.role === 'admin' || isPro) {
         signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
       } else {
+        // Free user, fetch only free signals
         signalsQuery = query(
           collection(db, 'signals'),
-          where('isPremium', '==', false)
+          where('isPremium', '==', false),
+          orderBy('createdAt', 'desc'),
+          limit(2)
         );
       }
       
       unsubscribeSignals = onSnapshot(signalsQuery, snapshot => {
-        let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-        
-        if (user.role !== 'admin' && !isPro) {
-            fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-            fetchedSignals = fetchedSignals.slice(0, 2);
-        }
-
+        const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
         setSignals(fetchedSignals);
       }, (error) => {
         console.error("Signal fetch error:", error);
+        toast({variant: "destructive", title: "Error fetching signals", description: error.message});
       });
 
       if (user.role === 'admin') {
@@ -138,14 +140,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } else { 
-        const guestQuery = query(
-            collection(db, 'signals'),
-            where('isPremium', '==', false)
-        );
+      // Guest user: Fetch latest 2 free signals
+       const guestQuery = query(
+        collection(db, 'signals'),
+        where('isPremium', '==', false)
+      );
       unsubscribeSignals = onSnapshot(guestQuery, (snapshot) => {
-        let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+        const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+        // Sort client-side to avoid needing a composite index
         fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
         setSignals(fetchedSignals.slice(0, 2));
+      }, (error) => {
+          console.error("Guest signal fetch error:", error);
+          // Don't show toast to guests, just log it.
       });
     }
 

@@ -14,12 +14,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user?.role !== 'admin') {
+    if (!loading && (!user || user.role !== 'admin')) {
       router.replace('/login');
     }
   }, [user, loading, router]);
 
-  if (loading || user?.role !== 'admin') {
+  if (loading || !user || user.role !== 'admin') {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="w-full max-w-4xl p-8 space-y-8">
