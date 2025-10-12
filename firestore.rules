@@ -1,104 +1,92 @@
 /**
- * @fileoverview Firestore Security Rules for Trader Choice application.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and payment information,
+ *              while allowing public read access to forex signals. Administrative privileges are required
+ *              to create, update, or delete signals.
  *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles,
- * admin-only writes for signals, and user-ownership for payments. It prioritizes
- * secure access control while allowing flexible data structures during prototyping.
+ * @dataStructure
+ * - /users/{userId}: Stores individual user profiles. Access is restricted to the owning user.
+ * - /signals/{signalId}: Stores forex trading signals. Publicly readable, but only admins can modify.
+ * - /payments/{paymentId}: Stores payment records. Accessible only to the owning user.
  *
- * Data Structure:
- * - /users/{userId}: Stores individual user profiles. Only the user themselves can
- *   read or write their profile data.
- * - /signals/{signalId}: Stores forex trading signals. Only admins can create,
- *   update, or delete signals. Signals are publicly readable.
- * - /payments/{paymentId}: Stores user payment transactions. Only the user themselves
- *   can create a payment transaction. Admins can update the payment transaction status.
+ * @keySecurityDecisions
+ * - User listing is disallowed to protect user privacy.
+ * - Signals are publicly readable to maximize app utility, but creating/modifying them is admin-restricted.
+ * - Payment records are strictly user-owned to prevent unauthorized access to financial data.
  *
- * Key Security Decisions:
- * - Users can only manage their own profile.
- * - Signals are publicly readable but admin-manageable.
- * - Payments are user-owned.
- * - Data validation is minimal, focusing on relational integrity (e.g., user IDs).
- *
- * Denormalization for Authorization:
- *  N/A - No denormalization is used in this rule set.
- *
- * Structural Segregation:
- * N/A - No structural segregation is used in this rule set.
+ * @denormalizationForAuthorization
+ * - Signals: `createdBy` field stores the UID of the admin who created the signal, facilitating admin-only write rules.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages user profile data.
+     * @description Enforces user-ownership for user profiles.  Only the authenticated user can read or write their own profile.
      * @path /databases/{database}/documents/users/{userId}
-     * @allow (get, create, update, delete) if the request is made by the user with matching {userId}.
-     *   Example: A user with UID "user123" can read/write the document at /users/user123.
-     * @deny (get, create, update, delete) if the request is made by a different user.
-     *   Example: A user with UID "user456" cannot read/write the document at /users/user123.
+     * @allow (create) - User with UID 'user_abc' can create their profile at /users/user_abc
+     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete their profile at /users/user_abc
+     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access the profile at /users/user_abc
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if false; // User listing is not allowed.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Manages forex trading signals. Signals are publicly readable but admin-manageable.
+     * @description Allows public read access to signals, but restricts creation, updates, and deletion to admins.
      * @path /databases/{database}/documents/signals/{signalId}
-     * @allow (get, list) to all users.
-     *   Example: Any user can read the signal at /signals/signal123.
-     * @allow (create, update, delete) only to admin users.
-     *   Example: An admin user can create, update, or delete the signal at /signals/signal123.
-     * @deny (create, update, delete) to non-admin users.
-     *   Example: A regular user cannot create, update, or delete the signal at /signals/signal123.
-     * @principle Allows public read access with owner-only (admin) writes.
+     * @allow (get, list) - Any user (signed in or not) can read signals.
+     * @allow (create) - Admin user with 'admin' role can create signals.
+     * @deny (create) - Non-admin user cannot create signals.
+     * @allow (update, delete) - Admin user with 'admin' role can update/delete signals.
+     * @deny (update, delete) - Non-admin user cannot update/delete signals.
+     * @principle Enforces role-based access control for writes.
      */
     match /signals/{signalId} {
+       function isAdmin() {
+          return request.auth.token.role == 'admin';
+        }
+
       allow get, list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Manages user payment transactions. Users can create payments. Admins can update the status.
+     * @description Enforces user-ownership for payment records.  Only the authenticated user can read or write their own payment data.
      * @path /databases/{database}/documents/payments/{paymentId}
-     * @allow (create) if the request is made by the user with matching uid in payment data.
-     *   Example: A user with UID "user123" can create a payment at /payments/payment123 if payment.uid == "user123".
-     * @allow (update) if the request is made by an admin user.
-     *   Example: An admin user can update the payment status at /payments/payment123.
-     * @deny (get, list, delete) to all users.
-     *   Example: A regular user cannot read, list, or delete payments.
-     * @principle Enforces user-ownership for creation and admin-only updates.
+     * @allow (create) - User with UID 'user_abc' can create their payment record.
+     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete their payment record.
+     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access the payment record of 'user_abc'.
+     * @principle Enforces document ownership for all operations.
      */
     match /payments/{paymentId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAdmin() && resource != null;
-      allow delete: if false;
+       function isOwner() {
+        return request.auth.uid == resource.data.userId;
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+      allow get: if isSignedIn() && isOwner();
+      allow list: if false; // User listing is not allowed.
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isSignedIn() && isOwner();
+      allow delete: if isSignedIn() && isOwner();
     }
-  }
-
-  // Helper functions
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-  }
-
-  function isAdmin() {
-    return request.auth.token.role == 'admin';
   }
 }
