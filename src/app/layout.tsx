@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { ClientProviders } from '@/contexts/client-providers';
+import { MainLayout } from '@/components/layout/main-layout';
 
 export const metadata: Metadata = {
   title: 'Trader Choice | Premium Forex Signals & Analytics',
@@ -25,7 +26,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <ClientProviders>
-          {children}
+          <MainLayout>
+            {children}
+          </MainLayout>
           <Toaster />
         </ClientProviders>
       </body>
