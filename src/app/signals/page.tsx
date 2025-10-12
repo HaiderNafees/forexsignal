@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
 export default function SignalsPage() {
-  const { signals, loading } = useAuth();
+  const { signals, signalsLoading } = useAuth();
 
   return (
     <section id="signals" className="py-16 md:py-24 bg-card pt-24">
@@ -22,7 +22,7 @@ export default function SignalsPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {loading ? (
+          {signalsLoading ? (
              [...Array(6)].map((_, i) => <Skeleton key={i} className="h-64" />)
           ) : signals.length > 0 ? (
             signals.map(signal => (
@@ -32,7 +32,7 @@ export default function SignalsPage() {
                     <CardTitle className="font-headline">{signal.title}</CardTitle>
                     <Badge variant={signal.type === 'premium' ? 'default' : 'secondary'}>{signal.type}</Badge>
                   </div>
-                  <CardDescription>{format(signal.createdAt.toDate(), 'PPP p')}</CardDescription>
+                  {signal.createdAt && <CardDescription>{format(signal.createdAt.toDate(), 'PPP p')}</CardDescription>}
                 </CardHeader>
                 <CardContent className="flex-grow space-y-4">
                   <p className="text-sm text-muted-foreground">{signal.description}</p>

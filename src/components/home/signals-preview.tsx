@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { Skeleton } from '../ui/skeleton';
 
 export function SignalsPreview() {
-  const { signals, loading } = useAuth();
+  const { signals, signalsLoading } = useAuth();
 
   // Show only the latest 2 free signals for the preview
   const freeSignals = signals.filter(s => s.type === 'free').slice(0, 2);
@@ -27,7 +27,7 @@ export function SignalsPreview() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-          {loading ? (
+          {signalsLoading ? (
              <>
                 <Skeleton className="h-64" />
                 <Skeleton className="h-64" />
@@ -40,7 +40,7 @@ export function SignalsPreview() {
                     <CardTitle className="font-headline">{signal.title}</CardTitle>
                     <Badge variant="secondary">{signal.type}</Badge>
                   </div>
-                  <CardDescription>{format(signal.createdAt.toDate(), 'PPP p')}</CardDescription>
+                  {signal.createdAt && <CardDescription>{format(signal.createdAt.toDate(), 'PPP p')}</CardDescription>}
                 </CardHeader>
                 <CardContent className="flex-grow space-y-4">
                   <p className="text-sm text-muted-foreground">{signal.description}</p>
