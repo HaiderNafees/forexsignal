@@ -18,8 +18,6 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
-  getDoc,
-  setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, Signal, Payment } from '@/lib/types';
@@ -52,21 +50,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      let userDocUnsubscribe: (() => void) | null = null;
+      
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          setUser({ uid: docSnap.id, ...docSnap.data() } as User);
-        } else {
-          // This case can happen if the Firestore doc isn't created yet.
-          // The onUserCreate function should handle this, but as a fallback:
-          setUser(null);
-        }
+        userDocUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser({ uid: docSnap.id, ...docSnap.data() } as User);
+          } else {
+            setUser(null);
+          }
+          setLoading(false);
+        }, (error) => {
+           console.error("Error fetching user document:", error);
+           setUser(null);
+           setLoading(false);
+        });
+
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
+
+      return () => {
+        if (userDocUnsubscribe) {
+          userDocUnsubscribe();
+        }
+      };
     });
 
     return () => unsubscribeAuth();
@@ -108,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
       unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
         setAllUsers(snapshot.docs.map(doc => doc.data() as User));
-        setAdminLoading(false); // Only set loading to false once users are fetched
+        setAdminLoading(false); 
       }, (error) => {
         console.error("Error fetching users:", error);
         setAdminLoading(false);
@@ -135,7 +146,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // The onUserCreate cloud function will handle role assignment and doc creation.
     return userCredential.user;
   };
 
