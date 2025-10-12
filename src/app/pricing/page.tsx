@@ -75,7 +75,7 @@ export default function PricingPage() {
   const [txHash, setTxHash] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const walletAddress = process.env.NEXT_PUBLIC_USDT_TRC20_WALLET_ADDRESS || '';
+  const walletAddress = "YOUR_WALLET_ADDRESS_HERE"; // Hardcode wallet address
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${walletAddress}`;
 
   const copyToClipboard = () => {

@@ -18,6 +18,8 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  setDoc,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, Signal, Payment } from '@/lib/types';
@@ -50,34 +52,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      let userDocUnsubscribe: (() => void) | null = null;
-      
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        userDocUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUser({ uid: docSnap.id, ...docSnap.data() } as User);
-          } else {
-            setUser(null);
-          }
-          setLoading(false);
-        }, (error) => {
-           console.error("Error fetching user document:", error);
-           setUser(null);
-           setLoading(false);
-        });
+        const docSnap = await getDoc(userDocRef);
 
+        if (docSnap.exists()) {
+          setUser({ uid: docSnap.id, ...docSnap.data() } as User);
+        }
       } else {
         setUser(null);
-        setLoading(false);
       }
-
-      return () => {
-        if (userDocUnsubscribe) {
-          userDocUnsubscribe();
-        }
-      };
+      setLoading(false);
     });
 
     return () => unsubscribeAuth();
@@ -93,47 +79,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Fetch Signals
     setSignalsLoading(true);
+    setAdminLoading(true);
+
     const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
     const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
       const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-      
-      if (user.role === 'admin' || user.role === 'pro') {
-        setSignals(fetchedSignals);
-      } else {
-        setSignals(fetchedSignals.filter(s => s.type === 'free'));
-      }
+      setSignals(fetchedSignals);
       setSignalsLoading(false);
     }, (error) => {
-        console.error("Error fetching signals:", error);
-        setSignals([]);
-        setSignalsLoading(false);
+      console.error("Error fetching signals:", error);
+      setSignalsLoading(false);
     });
 
-    // Fetch Admin Data (if admin)
     let unsubscribeUsers = () => {};
     let unsubscribePayments = () => {};
+
     if (user.role === 'admin') {
-      setAdminLoading(true);
       const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
       unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
         setAllUsers(snapshot.docs.map(doc => doc.data() as User));
-        setAdminLoading(false); 
-      }, (error) => {
-        console.error("Error fetching users:", error);
-        setAdminLoading(false);
-      });
+      }, (error) => console.error("Error fetching users:", error));
 
       const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
       unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
         setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
-      }, (error) => {
-         console.error("Error fetching payments:", error);
-      });
+      }, (error) => console.error("Error fetching payments:", error));
+      
+      setAdminLoading(false);
     } else {
-        setAllUsers([]);
-        setPayments([]);
         setAdminLoading(false);
     }
 
@@ -146,7 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    const { user: fbUser } = userCredential;
+    
+    const userRef = doc(db, 'users', fbUser.uid);
+    await setDoc(userRef, {
+        uid: fbUser.uid,
+        email: fbUser.email,
+        role: 'free',
+        createdAt: serverTimestamp(),
+        proExpires: null,
+    });
+    
+    return fbUser;
   };
 
   const login = async (email: string, password: string): Promise<FirebaseUser> => {
@@ -176,10 +161,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user?.role !== 'admin') throw new Error('Permission denied');
     await deleteDoc(doc(db, 'signals', id));
   };
+  
+  const filteredSignals = user?.role === 'free' 
+    ? signals.filter(s => s.type === 'free').slice(0, 2) 
+    : signals;
 
   const value = {
     user,
-    signals,
+    signals: user?.role === 'free' ? signals.filter(s => s.type === 'free') : signals,
     allUsers,
     payments,
     loading,
