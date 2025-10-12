@@ -1,3 +1,4 @@
+
 // src/contexts/auth-provider.tsx
 'use client';
 
@@ -46,7 +47,6 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const protectedRoutes = ['/dashboard', '/admin'];
-const publicRoutes = ['/login', '/signup'];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -69,32 +69,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       if (fbUser) {
-        setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
-        
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
            const userData = { uid: userDoc.id, ...userDoc.data() } as User;
            setUser(userData);
-            // Non-login page navigation logic
-           if (!publicRoutes.includes(pathname)) {
-                const isAdminRoute = pathname.startsWith('/admin');
-                if (userData.role === 'admin' && !isAdminRoute) {
-                    router.replace('/admin');
-                } else if (userData.role !== 'admin' && isAdminRoute) {
-                    router.replace('/dashboard');
-                }
-           }
+           setFirebaseUser(fbUser);
         } else {
-             // This can happen if the user is deleted from Firestore but not from Auth.
-             // Log them out to clear state.
              await signOut(auth);
-             setUser(null);
-             setFirebaseUser(null);
-             if (protectedRoutes.some(route => pathname.startsWith(route))) {
-               router.replace('/login');
-             }
         }
       } else {
         setFirebaseUser(null);
@@ -108,25 +91,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth, db, pathname]); // Added pathname to re-evaluate on route change
+  }, [auth, db]);
 
    useEffect(() => {
-    // Only run listeners when auth state is resolved
     if (loading) return;
 
     let unsubscribeSignals: () => void = () => {};
     let unsubscribeUsers: () => void = () => {};
     let unsubscribePayments: () => void = () => {};
 
-    if (user) { // User is logged in
+    if (user) { 
       const isPro = user.proExpires ? user.proExpires.toMillis() > Date.now() : false;
 
       let signalsQuery;
       if (user.role === 'admin' || isPro) {
-        // Admins and Pro users get all signals
         signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
       } else {
-        // Free users get up to 2 free signals
         signalsQuery = query(
           collection(db, 'signals'),
           where('isPremium', '==', false)
@@ -137,7 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
         
         if (user.role !== 'admin' && !isPro) {
-           // Sort by date and take the latest 2 on the client
             fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
             fetchedSignals = fetchedSignals.slice(0, 2);
         }
@@ -145,7 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSignals(fetchedSignals);
       }, (error) => {
         console.error("Signal fetch error:", error);
-        toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
       });
 
       if (user.role === 'admin') {
@@ -159,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
         });
       }
-    } else { // User is not logged in (guest)
+    } else { 
         const guestQuery = query(
             collection(db, 'signals'),
             where('isPremium', '==', false)
@@ -168,8 +146,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
         fetchedSignals.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
         setSignals(fetchedSignals.slice(0, 2));
-      }, (error) => {
-        console.error("Guest signal fetch error:", error);
       });
     }
 

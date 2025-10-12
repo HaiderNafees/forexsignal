@@ -1,131 +1,104 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with user-specific data isolation.
+ * @fileoverview Firestore Security Rules for Trader Choice application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles,
+ * admin-only writes for signals, and user-ownership for payments. It prioritizes
+ * secure access control while allowing flexible data structures during prototyping.
  *
  * Data Structure:
- * - /users/{userId}: Stores individual user profiles. Access is restricted to the owning user and admins.
- * - /signals/{signalId}: Stores forex signals. Publicly readable, but create/update/delete restricted to admins.
- * - /payments/{paymentId}: Stores payment records. Accessible only to the owning user and admins.
+ * - /users/{userId}: Stores individual user profiles. Only the user themselves can
+ *   read or write their profile data.
+ * - /signals/{signalId}: Stores forex trading signals. Only admins can create,
+ *   update, or delete signals. Signals are publicly readable.
+ * - /payments/{paymentId}: Stores user payment transactions. Only the user themselves
+ *   can create a payment transaction. Admins can update the payment transaction status.
  *
  * Key Security Decisions:
- * - Users can only read/write their own profile data.
- * - Admins have full read/write access to all data.
- * - Public read access is granted to the /signals collection.
- * - Listing of all users is denied to prevent information disclosure.
+ * - Users can only manage their own profile.
+ * - Signals are publicly readable but admin-manageable.
+ * - Payments are user-owned.
+ * - Data validation is minimal, focusing on relational integrity (e.g., user IDs).
  *
  * Denormalization for Authorization:
- * - Signals include a `createdBy` field to track the admin who created them, allowing for easier write rules.
+ *  N/A - No denormalization is used in this rule set.
+ *
+ * Structural Segregation:
+ * N/A - No structural segregation is used in this rule set.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is an admin.
-     */
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.role == 'admin';
-    }
-
-    /**
-     * @description Checks if the user is the owner of the existing document.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for the /users collection.
+     * @description Manages user profile data.
      * @path /databases/{database}/documents/users/{userId}
-     * @allow (create) User with UID 'user123' can create their own profile.
-     *   Request: auth.uid = 'user123', resource.data.uid = 'user123'
-     * @allow (get) User with UID 'user123' can read their own profile.
-     *   Request: auth.uid = 'user123'
-     * @allow (update) User with UID 'user123' can update their own profile.
-     *   Request: auth.uid = 'user123'
-     * @allow (delete) User with UID 'user123' can delete their own profile.
-     *   Request: auth.uid = 'user123'
-     * @allow (get) Admin can read any user profile.
-     *   Request: auth.token.role = 'admin'
-     * @allow (update) Admin can update any user profile.
-     *   Request: auth.token.role = 'admin'
-     * @deny (create) User with UID 'user456' cannot create a profile with UID 'user123'.
-     *   Request: auth.uid = 'user456', resource.data.uid = 'user123'
-     * @deny (get) User with UID 'user456' cannot read user profile with UID 'user123'.
-     *   Request: auth.uid = 'user456'
-     * @principle Enforces user-ownership for profile data and restricts access to admins.
+     * @allow (get, create, update, delete) if the request is made by the user with matching {userId}.
+     *   Example: A user with UID "user123" can read/write the document at /users/user123.
+     * @deny (get, create, update, delete) if the request is made by a different user.
+     *   Example: A user with UID "user456" cannot read/write the document at /users/user123.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isExistingOwner(userId) || isAdmin() && request.resource.data.uid == resource.data.uid;
-      allow delete: if isExistingOwner(userId) || isAdmin();
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for the /signals collection.
+     * @description Manages forex trading signals. Signals are publicly readable but admin-manageable.
      * @path /databases/{database}/documents/signals/{signalId}
-     * @allow (get) Any user can read a signal.
-     *   Request: No auth needed.
-     * @allow (list) Any user can list signals.
-     *   Request: No auth needed.
-     * @allow (create) Admin can create a signal.
-     *   Request: auth.token.role = 'admin'
-     * @allow (update) Admin can update a signal.
-     *   Request: auth.token.role = 'admin'
-     * @allow (delete) Admin can delete a signal.
-     *   Request: auth.token.role = 'admin'
-     * @deny (create) User cannot create signals.
-     *   Request: auth.token.role = 'user'
-     * @principle Allows public read access but restricts writes to admins.
+     * @allow (get, list) to all users.
+     *   Example: Any user can read the signal at /signals/signal123.
+     * @allow (create, update, delete) only to admin users.
+     *   Example: An admin user can create, update, or delete the signal at /signals/signal123.
+     * @deny (create, update, delete) to non-admin users.
+     *   Example: A regular user cannot create, update, or delete the signal at /signals/signal123.
+     * @principle Allows public read access with owner-only (admin) writes.
      */
     match /signals/{signalId} {
       allow get, list: if true;
-      allow create: if isAdmin() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Rules for the /payments collection.
+     * @description Manages user payment transactions. Users can create payments. Admins can update the status.
      * @path /databases/{database}/documents/payments/{paymentId}
-     * @allow (create) User with UID 'user123' can create a payment record.
-     *   Request: auth.uid = 'user123', resource.data.uid = 'user123'
-     * @allow (get) User with UID 'user123' can read their payment record.
-     *   Request: auth.uid = 'user123'
-     * @allow (list) User with UID 'user123' can list their payment records.
-     *   Request: auth.uid = 'user123'
-     * @allow (get) Admin can read any payment record.
-     *   Request: auth.token.role = 'admin'
-     * @allow (update) Admin can update any payment record.
-     *   Request: auth.token.role = 'admin'
-     * @deny (create) User with UID 'user456' cannot create a payment record with UID 'user123'.
-     *   Request: auth.uid = 'user456', resource.data.uid = 'user123'
-     * @deny (get) User with UID 'user456' cannot read payment record with UID 'user123'.
-     *   Request: auth.uid = 'user456'
-     * @principle Enforces user-ownership for payment records and restricts access to admins.
+     * @allow (create) if the request is made by the user with matching uid in payment data.
+     *   Example: A user with UID "user123" can create a payment at /payments/payment123 if payment.uid == "user123".
+     * @allow (update) if the request is made by an admin user.
+     *   Example: An admin user can update the payment status at /payments/payment123.
+     * @deny (get, list, delete) to all users.
+     *   Example: A regular user cannot read, list, or delete payments.
+     * @principle Enforces user-ownership for creation and admin-only updates.
      */
     match /payments/{paymentId} {
-      allow get: if isOwner(request.resource.data.uid) || isAdmin();
-      allow list: if isOwner(request.resource.data.uid);
+      allow get: if false;
+      allow list: if false;
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin() && resource != null;
-      allow delete: if false; // Payments should not be deleted
+      allow delete: if false;
     }
+  }
+
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+  }
+
+  function isAdmin() {
+    return request.auth.token.role == 'admin';
   }
 }

@@ -101,7 +101,9 @@ export const verifyTrc20Payment = functions.https.onCall(async (data, context) =
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        await admin.auth().setCustomUserClaims(uid, { ...context.auth.token, pro: true });
+        // Set custom claim `pro` to true
+        const currentClaims = context.auth.token || {};
+        await admin.auth().setCustomUserClaims(uid, { ...currentClaims, pro: true });
 
         return { success: true, message: "Payment verified! Your account has been upgraded." };
     } else {
