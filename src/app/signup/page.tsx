@@ -5,10 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import {
-  createUserWithEmailAndPassword
-} from 'firebase/auth';
-import { useAuth } from '@/hooks/use-auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useAuth } from '@/contexts/auth-provider';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +15,9 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
-import { useRouter, useSearchParams } from "next/navigation";
 
 const formSchema = z.object({
-  fullName: z.string().min(2, { message: "Name must be at least 2 characters."}),
+  displayName: z.string().min(2, { message: "Name must be at least 2 characters."}),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
 });
@@ -28,14 +25,12 @@ const formSchema = z.object({
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { auth } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      fullName: "",
+      displayName: "",
       email: "",
       password: "",
     },
@@ -47,12 +42,18 @@ export default function SignupPage() {
     try {
       if (!auth) throw new Error("Authentication service is not available.");
 
-      // Create user with Firebase Authentication. The AuthProvider will handle profile creation.
-      await createUserWithEmailAndPassword(
+      const userCredential = await createUserWithEmailAndPassword(
         auth,
         values.email,
         values.password
       );
+      
+      // Set the user's display name
+      await updateProfile(userCredential.user, {
+          displayName: values.displayName
+      });
+
+      // The on-create cloud function will handle Firestore doc creation and role assignment.
       
       toast({
         title: "Account Created!",
@@ -65,7 +66,7 @@ export default function SignupPage() {
         toast({
             variant: "destructive",
             title: "Signup Failed",
-            description: error.message || "An unexpected error occurred.",
+            description: error.code === 'auth/email-already-in-use' ? 'This email is already registered.' : error.message,
         });
     } finally {
       setLoading(false);
@@ -87,7 +88,7 @@ export default function SignupPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
-                name="fullName"
+                name="displayName"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>

@@ -2,127 +2,77 @@
 {
   "entities": {
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
       "description": "Represents a user of the Trader Choice application.",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Unique identifier for the user, matching Firebase Auth UID."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address.",
-          "format": "email"
-        },
-        "role": {
-          "type": "string",
-          "description": "The user's role within the application (e.g., free, pro, admin).",
-          "enum": ["free", "pro", "admin"]
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the user account was created.",
-          "format": "date-time"
-        }
+        "uid": { "type": "string", "description": "Unique identifier from Firebase Auth." },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "proExpires": { "type": ["string", "null"], "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "uid",
-        "email",
-        "role",
-        "createdAt"
-      ]
+      "required": ["uid", "email", "role", "createdAt"]
     },
     "Signal": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Signal",
       "type": "object",
-      "description": "Represents a forex signal.",
+      "description": "Represents a forex trading signal.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the signal entity."
-        },
-        "title": {
-          "type": "string",
-          "description": "The title of the signal."
-        },
-        "pair": {
-            "type": "string",
-            "description": "The currency pair for the signal (e.g. 'XAU/USD')."
-        },
-        "action": {
-            "type": "string",
-            "enum": ["BUY", "SELL"]
-        },
-        "entry": {"type": "number"},
-        "stopLoss": {"type": "number"},
-        "takeProfit": {"type": "number"},
-        "status": {
-          "type": "string",
-          "description": "The status of the signal (e.g., free, premium).",
-          "enum": ["free", "premium"]
-        },
-        "createdAt": {
-            "type": "string",
-            "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "entryPrice": { "type": "number" },
+        "takeProfit": { "type": "number" },
+        "stopLoss": { "type": "number" },
+        "isPremium": { "type": "boolean" },
+        "createdBy": { "type": "string", "description": "UID of the admin who created it." },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "title",
-        "pair",
-        "action",
-        "entry",
-        "stopLoss",
-        "takeProfit",
-        "status",
-        "createdAt"
-      ]
+      "required": ["title", "description", "entryPrice", "takeProfit", "stopLoss", "isPremium", "createdBy", "createdAt"]
     },
-    "UpgradeRequest": {
-        "title": "UpgradeRequest",
-        "type": "object",
-        "description": "Represents a user's request to upgrade their account.",
-        "properties": {
-            "uid": {"type": "string"},
-            "email": {"type": "string", "format": "email"},
-            "requestedAt": {"type": "string", "format": "date-time"}
-        },
-        "required": ["uid", "email", "requestedAt"]
+    "Payment": {
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a user's payment transaction.",
+      "properties": {
+        "uid": { "type": "string" },
+        "txHash": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "verifiedAt": { "type": ["string", "null"], "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "txHash", "amount", "status", "createdAt"]
     }
   },
   "auth": {
-    "providers": [
-      "password"
-    ],
+    "providers": ["password"],
     "customClaims": {
-        "role": {
-            "type": "string",
-            "enum": ["free", "pro", "admin"]
-        }
+      "role": {
+        "type": "string",
+        "enum": ["user", "admin"]
+      },
+      "pro": {
+        "type": "boolean"
+      }
     }
   },
   "firestore": {
-      "rules": "firestore.rules",
-      "collections": {
-          "users": {
-              "schema": {"$ref": "#/entities/User"},
-              "description": "Stores user profile information, keyed by Firebase Auth UID."
-          },
-          "signals_free": {
-              "schema": {"$ref": "#/entities/Signal"},
-              "description": "Stores free forex signals accessible to all authenticated users."
-          },
-          "signals_pro": {
-              "schema": {"$ref": "#/entities/Signal"},
-              "description": "Stores premium forex signals accessible only to 'pro' and 'admin' users."
-          },
-          "upgrade_requests": {
-              "schema": {"$ref": "#/entities/UpgradeRequest"},
-              "description": "Stores user requests to upgrade to the Pro plan for admin review."
-          }
+    "collections": {
+      "users": {
+        "schema": { "$ref": "#/entities/User" },
+        "description": "Stores user profile information, keyed by Firebase Auth UID."
+      },
+      "signals": {
+        "schema": { "$ref": "#/entities/Signal" },
+        "description": "Stores all forex signals, both free and premium."
+      },
+      "payments": {
+        "schema": { "$ref": "#/entities/Payment" },
+        "description": "Stores user payment transaction hashes for verification."
       }
+    }
   }
 }

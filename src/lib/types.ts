@@ -3,26 +3,31 @@ import type { Timestamp } from 'firebase/firestore';
 
 export interface User {
   uid: string;
-  email: string;
-  role: 'free' | 'pro' | 'admin';
-  createdAt: string;
+  email: string | null;
+  displayName: string | null;
+  role: 'user' | 'admin';
+  proExpires: Timestamp | null;
+  createdAt: Timestamp;
 }
 
 export interface Signal {
   id: string;
   title: string;
-  pair: string; // e.g., 'XAU/USD'
-  action: 'BUY' | 'SELL';
-  entry: number;
-  stopLoss: number;
+  description: string;
+  entryPrice: number;
   takeProfit: number;
-  status: 'free' | 'premium';
-  createdAt: string;
+  stopLoss: number;
+  isPremium: boolean;
+  createdBy: string; // Admin UID
+  createdAt: Timestamp;
 }
 
-export interface UpgradeRequest {
+export interface Payment {
     id: string;
     uid: string;
-    email: string;
-    requestedAt: Timestamp;
+    txHash: string;
+    amount: number;
+    status: 'pending' | 'verified' | 'rejected';
+    verifiedAt: Timestamp | null;
+    createdAt: Timestamp;
 }

@@ -5,10 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import {
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
-import { useAuth } from '@/hooks/use-auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth } from '@/contexts/auth-provider';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Logo } from "@/components/logo";
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
@@ -25,9 +22,9 @@ const formSchema = z.object({
 });
 
 export default function LoginPage() {
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { auth, firebaseUser, loading: authLoading } = useAuth();
+  const { auth, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -38,7 +35,7 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setLoading(true);
+    setIsSubmitting(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       // Force a token refresh to get the latest custom claims.
@@ -46,9 +43,9 @@ export default function LoginPage() {
       
       toast({
         title: "Login Successful",
-        description: "Redirecting to your dashboard...",
+        description: "Redirecting...",
       });
-      // The AuthProvider will now handle redirection automatically with the refreshed claims.
+      // AuthProvider will now handle redirection automatically with the refreshed claims.
 
     } catch (error: any) {
       toast({
@@ -57,11 +54,10 @@ export default function LoginPage() {
         description: error.message || "An unexpected error occurred.",
       });
     } finally {
-        setLoading(false);
+        setIsSubmitting(false);
     }
   }
 
-  // Show a loading skeleton while auth state is resolving
   if (authLoading) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -117,8 +113,8 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing In..." : "Sign In"}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Signing In..." : "Sign In"}
               </Button>
             </form>
           </Form>

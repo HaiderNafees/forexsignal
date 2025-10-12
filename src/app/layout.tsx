@@ -5,7 +5,6 @@ import { AuthProvider } from '@/contexts/auth-provider';
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/layout/footer';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
   title: 'Trader Choice | Premium Forex Signals & Analytics',
@@ -29,7 +28,6 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <FirebaseErrorListener />
           <Header />
           <main>{children}</main>
           <Footer />
