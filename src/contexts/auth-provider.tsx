@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -12,7 +12,6 @@ import {
   doc,
   collection,
   query,
-  where,
   orderBy,
   onSnapshot,
   addDoc,
@@ -20,7 +19,6 @@ import {
   deleteDoc,
   serverTimestamp,
   getDoc,
-  limit,
   setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -54,16 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-            setUser(docSnap.data() as User);
+            setUser({ uid: docSnap.id, ...docSnap.data() } as User);
           } else {
-            // This case might happen if the Firestore doc isn't created yet.
-            // We'll wait for the creation to trigger the listener again.
-             setUser(null);
+            // This case can happen if the Firestore doc isn't created yet or was deleted.
+            setUser(null);
           }
           setLoading(false);
         }, (error) => {
@@ -74,16 +71,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => unsubscribeUser();
       } else {
         setUser(null);
-        setLoading(false);
         setSignals([]);
         setAllUsers([]);
         setPayments([]);
+        setLoading(false);
+        setSignalsLoading(false);
+        setAdminLoading(false);
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
-
 
   useEffect(() => {
     if (!user) {
@@ -93,17 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setSignalsLoading(true);
-    let signalsQuery;
-
-    if (user.role === 'admin' || user.role === 'pro') {
-      signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
-    } else {
-      signalsQuery = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'));
-    }
+    // A single, simple query for all signals, ordered by creation time.
+    const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
     
     const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
       const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-      setSignals(fetchedSignals);
+      
+      // Apply filtering on the client-side based on the user's role.
+      if (user.role === 'admin' || user.role === 'pro') {
+        setSignals(fetchedSignals);
+      } else {
+        // Free users see only the latest 2 free signals.
+        const freeSignals = fetchedSignals.filter(s => s.type === 'free').slice(0, 2);
+        setSignals(freeSignals);
+      }
       setSignalsLoading(false);
     }, (error) => {
         console.error("Error fetching signals:", error);
@@ -126,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       setAllUsers(snapshot.docs.map(doc => doc.data() as User));
-      if(snapshot.docs.length > 0) setAdminLoading(false);
+      setAdminLoading(false); // Set loading to false once users are fetched
     }, (error) => {
       console.error("Error fetching users:", error);
        setAdminLoading(false);
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // The onUserCreate cloud function will handle creating the user document.
+    // The onUserCreate cloud function will handle role assignment.
     return userCredential.user;
   };
 
