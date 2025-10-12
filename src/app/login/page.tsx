@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -34,7 +35,8 @@ export default function LoginPage() {
   const onSubmit: SubmitHandler<LoginValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      const user = await login(data.email, data.password);
+      const userCredential = await login(data.email, data.password);
+      const user = userCredential.user;
       
       // Force refresh the token to get the latest custom claims.
       const idTokenResult = await user.getIdTokenResult(true);
@@ -58,7 +60,8 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: error.message || 'An unknown error occurred.',
       });
-      setIsSubmitting(false);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 

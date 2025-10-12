@@ -1,3 +1,5 @@
+
+// src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -12,10 +14,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
+// Initialize Firebase only once
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 const functions = getFunctions(app);
+
 
 export { app, auth, db, functions };
