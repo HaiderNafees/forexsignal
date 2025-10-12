@@ -37,6 +37,8 @@ export default function DashboardPage() {
        </div>
     )
   }
+  
+  const displayedSignals = user.role === 'free' ? signals.slice(0, 2) : signals;
 
   return (
     <div className="min-h-screen bg-background pt-24">
@@ -72,8 +74,8 @@ export default function DashboardPage() {
               <Skeleton className="h-64 rounded-lg" />
               <Skeleton className="h-64 rounded-lg" />
             </>
-          ) : signals.length > 0 ? (
-            signals.map(signal => (
+          ) : displayedSignals.length > 0 ? (
+            displayedSignals.map(signal => (
               <Card key={signal.id} className="flex flex-col">
                 <CardHeader>
                   <div className="flex justify-between items-center">

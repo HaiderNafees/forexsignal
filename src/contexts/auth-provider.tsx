@@ -52,32 +52,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [adminLoading, setAdminLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUser({ uid: docSnap.id, ...docSnap.data() } as User);
-          } else {
-            // This case can happen if the Firestore doc isn't created yet or was deleted.
-            setUser(null);
-          }
-          setLoading(false);
-        }, (error) => {
-            console.error("Error fetching user profile:", error);
-            setUser(null);
-            setLoading(false);
-        });
-        return () => unsubscribeUser();
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          setUser({ uid: docSnap.id, ...docSnap.data() } as User);
+        } else {
+          // This case can happen if the Firestore doc isn't created yet.
+          // The onUserCreate function should handle this, but as a fallback:
+          setUser(null);
+        }
       } else {
         setUser(null);
-        setSignals([]);
-        setAllUsers([]);
-        setPayments([]);
-        setLoading(false);
-        setSignalsLoading(false);
-        setAdminLoading(false);
       }
+      setLoading(false);
     });
 
     return () => unsubscribeAuth();
@@ -85,25 +74,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-        setSignals([]);
-        setSignalsLoading(false);
-        return;
+      setSignals([]);
+      setAllUsers([]);
+      setPayments([]);
+      setSignalsLoading(false);
+      setAdminLoading(false);
+      return;
     }
 
+    // Fetch Signals
     setSignalsLoading(true);
-    // A single, simple query for all signals, ordered by creation time.
     const signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
-    
     const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
       const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
       
-      // Apply filtering on the client-side based on the user's role.
       if (user.role === 'admin' || user.role === 'pro') {
         setSignals(fetchedSignals);
       } else {
-        // Free users see only the latest 2 free signals.
-        const freeSignals = fetchedSignals.filter(s => s.type === 'free').slice(0, 2);
-        setSignals(freeSignals);
+        setSignals(fetchedSignals.filter(s => s.type === 'free'));
       }
       setSignalsLoading(false);
     }, (error) => {
@@ -112,35 +100,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSignalsLoading(false);
     });
 
-    return () => unsubscribeSignals();
-  }, [user]);
+    // Fetch Admin Data (if admin)
+    let unsubscribeUsers = () => {};
+    let unsubscribePayments = () => {};
+    if (user.role === 'admin') {
+      setAdminLoading(true);
+      const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+      unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+        setAllUsers(snapshot.docs.map(doc => doc.data() as User));
+        setAdminLoading(false); // Only set loading to false once users are fetched
+      }, (error) => {
+        console.error("Error fetching users:", error);
+        setAdminLoading(false);
+      });
 
-  useEffect(() => {
-    if (user?.role !== 'admin') {
-      setAllUsers([]);
-      setPayments([]);
-      setAdminLoading(false);
-      return;
+      const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
+      unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
+        setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
+      }, (error) => {
+         console.error("Error fetching payments:", error);
+      });
+    } else {
+        setAllUsers([]);
+        setPayments([]);
+        setAdminLoading(false);
     }
 
-    setAdminLoading(true);
-    const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      setAllUsers(snapshot.docs.map(doc => doc.data() as User));
-      setAdminLoading(false); // Set loading to false once users are fetched
-    }, (error) => {
-      console.error("Error fetching users:", error);
-       setAdminLoading(false);
-    });
-
-    const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
-    const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
-      setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
-    }, (error) => {
-       console.error("Error fetching payments:", error);
-    });
-
     return () => {
+      unsubscribeSignals();
       unsubscribeUsers();
       unsubscribePayments();
     };
@@ -148,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // The onUserCreate cloud function will handle role assignment.
+    // The onUserCreate cloud function will handle role assignment and doc creation.
     return userCredential.user;
   };
 
