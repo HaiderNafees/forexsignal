@@ -4,7 +4,7 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   doc,
   getDoc,
@@ -95,13 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       if (fbUser) {
+        // Force a token refresh to get the latest custom claims.
+        await fbUser.getIdToken(true);
         setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubscribeDoc = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
             setUser({ uid: snap.id, ...snap.data() } as User);
           } else {
-            // This case should be handled by the user creation cloud function
             console.warn("User document not found for authenticated user.");
             setUser(null);
           }
@@ -141,19 +142,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, loading, pathname, router]);
 
   useEffect(() => {
+    // For logged-out users, do not fetch from Firestore.
+    // The security rules require authentication for reads.
     if (!user) {
-      // For logged-out users, only fetch free signals
-      const freeSignalsQuery = query(
-        collection(db, 'signals'),
-        where('isPremium', '==', false),
-        orderBy('createdAt', 'desc'),
-        limit(2)
-      );
-      const unsubscribe = onSnapshot(freeSignalsQuery, (snapshot) => {
-        const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-        setSignals(signalsData);
-      });
-      return () => unsubscribe();
+      setSignals([]);
+      return;
     }
 
     // For logged-in users
