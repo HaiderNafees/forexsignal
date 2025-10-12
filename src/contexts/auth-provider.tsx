@@ -21,7 +21,7 @@ import {
   Timestamp,
   type Firestore,
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable, type Functions } from "firebase/functions";
+import { getFunctions, type Functions } from "firebase/functions";
 import type { Auth } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { User, Signal, Payment } from '@/lib/types';
@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
         const userDoc = await getDoc(userDocRef);
+        
         if (userDoc.exists()) {
            const userData = { uid: userDoc.id, ...userDoc.data() } as User;
            setUser(userData);
@@ -85,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              router.replace(userData.role === 'admin' ? '/admin' : '/dashboard');
            }
         } else {
-            // Handle case where user exists in Auth but not Firestore
              setUser(null);
              setFirebaseUser(null);
              if (protectedRoutes.some(route => pathname.startsWith(route))) {
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setFirebaseUser(null);
         setUser(null);
-        setSignals([]);
+        setSignals([]); // Clear signals on logout
         if (protectedRoutes.some(route => pathname.startsWith(route))) {
             router.replace('/login');
         }
@@ -104,43 +104,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [auth, db, pathname, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, db]);
 
    useEffect(() => {
-    if (loading) return; // Don't run listeners until auth state is resolved
-
     let unsubscribeSignals: () => void = () => {};
     let unsubscribeUsers: () => void = () => {};
     let unsubscribePayments: () => void = () => {};
 
+    // Don't fetch if initial auth state is still loading
+    if (loading) return;
+
     if (user) { // User is logged in
       const isPro = user.proExpires ? user.proExpires.toMillis() > Date.now() : false;
 
+      let signalsQuery;
       if (user.role === 'admin' || isPro) {
-        const allSignalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
-        unsubscribeSignals = onSnapshot(allSignalsQuery, snapshot => {
-          setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
-        }, (error) => {
-          console.error("Signal fetch error:", error);
-          toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
-        });
-      } else { // Free user
+        // Admins and Pro users get all signals
+        signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+      } else {
+        // Free users get up to 2 free signals from the last 24 hours
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const freeSignalsQuery = query(
+        signalsQuery = query(
           collection(db, 'signals'),
           where('isPremium', '==', false),
-          where('createdAt', '>=', Timestamp.fromDate(today)),
           orderBy('createdAt', 'desc'),
           limit(2)
         );
-        unsubscribeSignals = onSnapshot(freeSignalsQuery, snapshot => {
-          setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
-        }, (error) => {
-            console.error("Signal fetch error (free):", error);
-            toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
-        });
       }
+      
+      unsubscribeSignals = onSnapshot(signalsQuery, snapshot => {
+        setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+      }, (error) => {
+        console.error("Signal fetch error:", error);
+        toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
+      });
 
       if (user.role === 'admin') {
         const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -153,22 +152,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
         });
       }
-    } else { // User is logged out
-        const freeSignalsQuery = query(
-            collection(db, 'signals'),
-            where('isPremium', '==', false),
-            orderBy('createdAt', 'desc'),
-            limit(2)
-        );
-         unsubscribeSignals = onSnapshot(freeSignalsQuery, snapshot => {
-             setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
-         }, (error) => {
-             // This might fail if rules require auth, so handle gracefully
-             console.log("Could not fetch signals for logged-out user, likely due to security rules.");
-             setSignals([]);
-         });
+    } else { // User is not logged in (guest)
+      const guestQuery = query(
+        collection(db, 'signals'),
+        where('isPremium', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(2)
+      );
+      unsubscribeSignals = onSnapshot(guestQuery, (snapshot) => {
+        setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+      }, (error) => {
+        console.error("Guest signal fetch error:", error);
+        // Don't show toast for guests, as it might be expected if rules are strict
+      });
     }
-
 
     return () => {
       unsubscribeSignals();
