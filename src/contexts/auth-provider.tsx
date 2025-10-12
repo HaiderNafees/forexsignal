@@ -20,11 +20,11 @@ import {
   deleteDoc,
   serverTimestamp,
   getDoc,
-  limit
+  limit,
+  setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, Signal, Payment } from '@/lib/types';
-import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -35,7 +35,7 @@ interface AuthContextType {
   loading: boolean;
   signalsLoading: boolean;
   adminLoading: boolean;
-  signup: (email: string, password: string) => Promise<any>;
+  signup: (email: string, password: string) => Promise<FirebaseUser>;
   login: (email: string, password: string) => Promise<FirebaseUser>;
   logout: () => Promise<void>;
   addSignal: (signal: Omit<Signal, 'id' | 'createdBy' | 'createdAt'>) => Promise<void>;
@@ -54,8 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [adminLoading, setAdminLoading] = useState(true);
-  const pathname = usePathname();
-
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
@@ -69,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const userData = userDocSnap.data() as User;
                 setUser(userData);
             } else {
+                // This might happen briefly on new signup before the doc is created
                 setUser(null);
             }
             setLoading(false);
@@ -83,29 +82,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setFirebaseUser(null);
         setUser(null);
+        setSignals([]);
         setLoading(false);
+        setSignalsLoading(false);
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
 
-
-  // Listener for signals data
   useEffect(() => {
+    if (loading) return; 
+
     setSignalsLoading(true);
-    let q;
+    let signalsQuery;
 
     if (user && (user.role === 'admin' || user.role === 'pro')) {
-      // Admin and Pro users get all signals
-      q = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+      signalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
     } else {
-      // Guests and Free users get only free signals
-      q = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'));
+      // Free users get the latest 2 free signals
+      signalsQuery = query(collection(db, 'signals'), where('type', '==', 'free'), orderBy('createdAt', 'desc'), limit(2));
     }
     
-    const unsubscribeSignals = onSnapshot(q, (snapshot) => {
-      let fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
+    const unsubscribeSignals = onSnapshot(signalsQuery, (snapshot) => {
+      const fetchedSignals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
       setSignals(fetchedSignals);
       setSignalsLoading(false);
     }, (error) => {
@@ -115,10 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribeSignals();
-  }, [user, loading]); // Depend on user and loading state
+  }, [user, loading]);
 
-
-  // Listeners for admin-specific data
   useEffect(() => {
     if (user?.role !== 'admin') {
       setAllUsers([]);
@@ -131,14 +129,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       setAllUsers(snapshot.docs.map(doc => doc.data() as User));
-       setAdminLoading(false);
-    }, () => setAdminLoading(false));
+      setAdminLoading(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setAdminLoading(false);
+    });
 
     const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
     const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
       setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
-       setAdminLoading(false);
-    }, () => setAdminLoading(false));
+    }, (error) => {
+       console.error("Error fetching payments:", error);
+    });
 
     return () => {
       unsubscribeUsers();
@@ -146,14 +148,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.role]);
 
-
-  const signup = async (email: string, password: string) => {
+  const signup = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // Note: The user document in Firestore is created by the `onUserCreate` Cloud Function.
-    return userCredential;
+    const { user: fbUser } = userCredential;
+
+    // Create user document in Firestore
+    const userRef = doc(db, 'users', fbUser.uid);
+    await setDoc(userRef, {
+      uid: fbUser.uid,
+      email: fbUser.email,
+      role: 'free', // default role
+      createdAt: serverTimestamp(),
+      proExpires: null,
+    });
+    
+    return fbUser;
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<FirebaseUser> => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
   };
