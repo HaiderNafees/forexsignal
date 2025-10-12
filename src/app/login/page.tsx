@@ -51,7 +51,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
 
-    } catch (error: any) => {
+    } catch (error: any) {
       console.error(error);
       toast({
         variant: 'destructive',
