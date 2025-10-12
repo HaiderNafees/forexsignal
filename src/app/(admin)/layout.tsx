@@ -1,11 +1,12 @@
-
+// src/app/(admin)/layout.tsx
 'use client';
-import { useAuth } from '@/contexts/auth-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import React, { useEffect } from 'react';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
@@ -20,7 +21,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (loading || user?.role !== 'admin') {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
-        <p>Loading...</p>
+        <div className="w-full max-w-4xl p-8 space-y-8">
+            <Skeleton className="h-14 w-1/3" />
+            <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-64 w-full" />
+            </div>
+        </div>
       </div>
     );
   }

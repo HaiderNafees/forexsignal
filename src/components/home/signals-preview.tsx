@@ -9,7 +9,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, Target, ShieldX, ArrowRight } from
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-provider";
+import { useAuth } from "@/hooks/use-auth";
 
 function SignalCard({ signal }: { signal: Signal }) {
   const isBuy = signal.entryPrice < signal.takeProfit; // Infer action

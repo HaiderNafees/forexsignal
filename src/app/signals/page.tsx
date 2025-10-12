@@ -9,7 +9,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, Target, ShieldX, ArrowRight, Lock,
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-provider";
+import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 function SignalCard({ signal, isLocked }: { signal: Signal, isLocked: boolean }) {

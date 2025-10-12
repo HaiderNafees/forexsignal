@@ -1,7 +1,7 @@
-
+// src/contexts/auth-provider.tsx
 'use client';
 
-import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -19,62 +19,32 @@ import {
   limit,
   where,
   Timestamp,
+  type Firestore,
 } from 'firebase/firestore';
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFunctions, httpsCallable, type Functions } from "firebase/functions";
+import type { Auth } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { User, Signal, Payment } from '@/lib/types';
+import { getFirebaseInstances } from '@/lib/firebase';
 
-// --- FIREBASE INITIALIZATION ---
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-
-if (typeof window !== 'undefined') {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-}
-
-// --- TYPES ---
 interface AuthContextType {
   user: User | null;
   firebaseUser: FirebaseUser | null;
   signals: Signal[];
-  allUsers: User[]; // For admin
-  payments: Payment[]; // For admin
+  allUsers: User[];
+  payments: Payment[];
   loading: boolean;
   logout: () => void;
   addSignal: (signal: Omit<Signal, 'id' | 'createdAt' | 'createdBy'>) => Promise<void>;
   updateSignal: (signal: Omit<Signal, 'createdAt' | 'createdBy'>) => Promise<void>;
   deleteSignal: (signalId: string) => Promise<void>;
-  auth: Auth;
-  db: Firestore;
+  getAuth: () => Auth;
+  getDb: () => Firestore;
+  getFunctions: () => Functions;
 }
 
-// --- CONTEXT ---
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// --- HOOK ---
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-// --- PROVIDER ---
 const protectedRoutes = ['/dashboard', '/admin'];
 const publicRoutes = ['/login', '/signup'];
 
@@ -89,112 +59,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { toast } = useToast();
 
-  const isPro = user?.proExpires ? user.proExpires.toMillis() > Date.now() : false;
+  const { auth, db, functions } = getFirebaseInstances();
+
+  const getAuthInstance = () => auth;
+  const getDbInstance = () => db;
+  const getFunctionsInstance = () => functions;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setLoading(true);
       if (fbUser) {
-        // Force a token refresh to get the latest custom claims.
-        await fbUser.getIdToken(true);
         setFirebaseUser(fbUser);
         const userDocRef = doc(db, 'users', fbUser.uid);
-        const unsubscribeDoc = onSnapshot(userDocRef, (snap) => {
-          if (snap.exists()) {
-            setUser({ uid: snap.id, ...snap.data() } as User);
-          } else {
-            console.warn("User document not found for authenticated user.");
-            setUser(null);
-          }
-          setLoading(false);
-        });
-        return () => unsubscribeDoc();
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+           const userData = { uid: userDoc.id, ...userDoc.data() } as User;
+           setUser(userData);
+           // Handle redirection right after setting user
+           const isAdminRoute = pathname.startsWith('/admin');
+           if (userData.role === 'admin' && !isAdminRoute) {
+             router.replace('/admin');
+           } else if (userData.role !== 'admin' && isAdminRoute) {
+             router.replace('/dashboard');
+           } else if (publicRoutes.includes(pathname)) {
+             router.replace(userData.role === 'admin' ? '/admin' : '/dashboard');
+           }
+        } else {
+            // Handle case where user exists in Auth but not Firestore
+             setUser(null);
+             setFirebaseUser(null);
+             if (protectedRoutes.some(route => pathname.startsWith(route))) {
+               router.replace('/login');
+             }
+        }
       } else {
         setFirebaseUser(null);
         setUser(null);
         setSignals([]);
-        setAllUsers([]);
-        setPayments([]);
-        setLoading(false);
+        if (protectedRoutes.some(route => pathname.startsWith(route))) {
+            router.replace('/login');
+        }
       }
+      setLoading(false);
     });
+
     return () => unsubscribe();
-  }, []);
+  }, [auth, db, pathname, router]);
 
-  useEffect(() => {
-    if (loading) return;
+   useEffect(() => {
+    if (loading) return; // Don't run listeners until auth state is resolved
 
-    // Handle redirection logic
-    const isAdminRoute = pathname.startsWith('/admin');
-    if (user) {
-      if (user.role === 'admin' && !isAdminRoute) {
-        router.replace('/admin');
-      } else if (user.role !== 'admin' && isAdminRoute) {
-        router.replace('/dashboard');
-      } else if (publicRoutes.includes(pathname)) {
-        router.replace(user.role === 'admin' ? '/admin' : '/dashboard');
-      }
-    } else {
-      if (protectedRoutes.some(route => pathname.startsWith(route))) {
-        router.replace('/login');
-      }
-    }
-  }, [user, loading, pathname, router]);
-
-  useEffect(() => {
-    // For logged-out users, do not fetch from Firestore.
-    // The security rules require authentication for reads.
-    if (!user) {
-      setSignals([]);
-      return;
-    }
-
-    // For logged-in users
-    let unsubscribeSignals: () => void;
-    if (user.role === 'admin' || isPro) {
-      // Admins and Pro users get all signals
-      const allSignalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
-      unsubscribeSignals = onSnapshot(allSignalsQuery, snapshot => {
-        const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-        setSignals(signalsData);
-      });
-    } else {
-      // Free users get today's 2 free signals
-       const today = new Date();
-       today.setHours(0, 0, 0, 0);
-       const freeSignalsQuery = query(
-         collection(db, 'signals'),
-         where('isPremium', '==', false),
-         where('createdAt', '>=', Timestamp.fromDate(today)),
-         orderBy('createdAt', 'desc'),
-         limit(2)
-       );
-       unsubscribeSignals = onSnapshot(freeSignalsQuery, snapshot => {
-         const signalsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal));
-         setSignals(signalsData);
-       });
-    }
-
+    let unsubscribeSignals: () => void = () => {};
     let unsubscribeUsers: () => void = () => {};
     let unsubscribePayments: () => void = () => {};
-    if (user.role === 'admin') {
-      const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-      unsubscribeUsers = onSnapshot(usersQuery, snapshot => {
-        setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User)));
-      });
 
-      const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
-      unsubscribePayments = onSnapshot(paymentsQuery, snapshot => {
-        setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
-      });
+    if (user) { // User is logged in
+      const isPro = user.proExpires ? user.proExpires.toMillis() > Date.now() : false;
+
+      if (user.role === 'admin' || isPro) {
+        const allSignalsQuery = query(collection(db, 'signals'), orderBy('createdAt', 'desc'));
+        unsubscribeSignals = onSnapshot(allSignalsQuery, snapshot => {
+          setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+        }, (error) => {
+          console.error("Signal fetch error:", error);
+          toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
+        });
+      } else { // Free user
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const freeSignalsQuery = query(
+          collection(db, 'signals'),
+          where('isPremium', '==', false),
+          where('createdAt', '>=', Timestamp.fromDate(today)),
+          orderBy('createdAt', 'desc'),
+          limit(2)
+        );
+        unsubscribeSignals = onSnapshot(freeSignalsQuery, snapshot => {
+          setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+        }, (error) => {
+            console.error("Signal fetch error (free):", error);
+            toast({ variant: 'destructive', title: 'Error fetching signals', description: error.message });
+        });
+      }
+
+      if (user.role === 'admin') {
+        const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        unsubscribeUsers = onSnapshot(usersQuery, snapshot => {
+          setAllUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User)));
+        });
+
+        const paymentsQuery = query(collection(db, 'payments'), orderBy('createdAt', 'desc'));
+        unsubscribePayments = onSnapshot(paymentsQuery, snapshot => {
+          setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment)));
+        });
+      }
+    } else { // User is logged out
+        const freeSignalsQuery = query(
+            collection(db, 'signals'),
+            where('isPremium', '==', false),
+            orderBy('createdAt', 'desc'),
+            limit(2)
+        );
+         unsubscribeSignals = onSnapshot(freeSignalsQuery, snapshot => {
+             setSignals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Signal)));
+         }, (error) => {
+             // This might fail if rules require auth, so handle gracefully
+             console.log("Could not fetch signals for logged-out user, likely due to security rules.");
+             setSignals([]);
+         });
     }
+
 
     return () => {
       unsubscribeSignals();
       unsubscribeUsers();
       unsubscribePayments();
     };
-  }, [user, isPro]);
+  }, [user, loading, db, toast]);
 
 
   const logout = useCallback(async () => {
@@ -205,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Logout Failed', description: error.message });
     }
-  }, [router, toast]);
+  }, [auth, router, toast]);
 
   const addSignal = useCallback(async (signalData: Omit<Signal, 'id' | 'createdAt' | 'createdBy'>) => {
     if (user?.role !== 'admin') {
@@ -218,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: serverTimestamp(),
     });
     toast({ title: 'Signal Created' });
-  }, [user, toast]);
+  }, [user, db, toast]);
 
   const updateSignal = useCallback(async (signalData: Omit<Signal, 'createdAt' | 'createdBy'>) => {
     if (user?.role !== 'admin') {
@@ -228,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { id, ...data } = signalData;
     await updateDoc(doc(db, 'signals', id), data);
     toast({ title: 'Signal Updated' });
-  }, [user, toast]);
+  }, [user, db, toast]);
 
   const deleteSignal = useCallback(async (signalId: string) => {
     if (user?.role !== 'admin') {
@@ -237,7 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await deleteDoc(doc(db, 'signals', signalId));
     toast({ title: 'Signal Deleted' });
-  }, [user, toast]);
+  }, [user, db, toast]);
 
   const value: AuthContextType = {
     user,
@@ -250,8 +231,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     addSignal,
     updateSignal,
     deleteSignal,
-    auth,
-    db,
+    getAuth: getAuthInstance,
+    getDb: getDbInstance,
+    getFunctions: getFunctionsInstance,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-
+// src/app/login/page.tsx
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/contexts/auth-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -24,7 +24,8 @@ const formSchema = z.object({
 export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { auth, loading: authLoading } = useAuth();
+  const { getAuth, loading: authLoading } = useAuth();
+  const auth = getAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -38,6 +39,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      
       // Force a token refresh to get the latest custom claims.
       await userCredential.user.getIdToken(true);
       

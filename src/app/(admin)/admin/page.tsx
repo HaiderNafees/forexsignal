@@ -1,9 +1,9 @@
-
+// src/app/(admin)/admin/page.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/auth-provider';
-import type { Signal, User, Payment } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
+import type { Signal } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlusCircle, Edit, Trash } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // --- Signal Management ---
 function SignalForm({
@@ -54,8 +55,10 @@ function SignalForm({
     setFormData(prev => ({ ...prev, [name]: isNumber ? parseFloat(value) : value }));
   };
 
-  const handleCheckboxChange = (checked: boolean) => {
-    setFormData(prev => ({...prev, isPremium: checked}));
+  const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
+    if (typeof checked === 'boolean') {
+      setFormData(prev => ({...prev, isPremium: checked}));
+    }
   }
 
   const handleSubmit = () => {
@@ -233,7 +236,20 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
 
   if (loading || user?.role !== 'admin') {
-    return <div className="flex h-screen items-center justify-center">Loading or insufficient permissions...</div>;
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-8">
+            <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+            <div className="w-full space-y-8">
+                <Skeleton className="h-12 w-1/4" />
+                <Skeleton className="h-10 w-full" />
+                <div className="space-y-4">
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                </div>
+            </div>
+        </div>
+    );
   }
 
   return (

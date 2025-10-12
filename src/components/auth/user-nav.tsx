@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useAuth } from "@/contexts/auth-provider";
+import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {

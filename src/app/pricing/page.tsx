@@ -1,10 +1,10 @@
-
+// src/app/pricing/page.tsx
 "use client"
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Check, X, Copy } from "lucide-react";
-import { useAuth } from "@/contexts/auth-provider";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import {
@@ -23,10 +23,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import Image from "next/image";
 import { useState } from "react";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 const tiers = [
   {
@@ -87,7 +86,9 @@ const pricingFaqs = [
 ]
 
 function UpgradeDialogContent() {
-    const { auth, db } = useAuth();
+    const { firebaseUser, getDb, getFunctions } = useAuth();
+    const db = getDb();
+    const functions = getFunctions();
     const { toast } = useToast();
     const usdtAddress = "TBYKKvjy7KxexKA4jCn4F9cie88wUDtgUL";
     const [isCopied, setIsCopied] = useState(false);
@@ -102,7 +103,7 @@ function UpgradeDialogContent() {
     };
 
     const handleRequestUpgrade = async () => {
-        if (!auth.currentUser || !db) return;
+        if (!firebaseUser || !db) return;
         if (!txHash) {
             toast({ variant: "destructive", title: "Transaction hash is required."});
             return;
@@ -110,13 +111,10 @@ function UpgradeDialogContent() {
         setIsVerifying(true);
         
         try {
-            // In a real app, you would get the functions instance from your firebase setup
-            const functions = getFunctions();
             const verifyPayment = httpsCallable(functions, 'verifyTrc20Payment');
             
-            // Add payment to `payments` collection with 'pending' status
             await addDoc(collection(db, 'payments'), {
-                uid: auth.currentUser.uid,
+                uid: firebaseUser.uid,
                 txHash: txHash,
                 amount: 29,
                 status: 'pending',
@@ -127,8 +125,8 @@ function UpgradeDialogContent() {
                 title: "Payment Submitted!",
                 description: "Your payment is being verified. Your account will be upgraded within a few minutes if the transaction is valid.",
             });
-            // Here you might call the cloud function, or let a backend process handle it.
-            // For this example, we assume a backend process will pick it up.
+            // You can optionally call the function from the client, 
+            // but a backend trigger on the new document is often more robust.
             // const result = await verifyPayment({ txHash, price: 29 });
             // toast({ title: (result.data as any).message });
         } catch (error: any) {

@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useAuth } from '@/contexts/auth-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Signal } from '@/lib/types';
